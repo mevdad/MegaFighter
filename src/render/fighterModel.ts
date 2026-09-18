@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { dimensions, type Dims } from './rig';
 import type { BoneName, CharacterSpec, Pose } from '../game/types';
 
 /**
@@ -6,45 +7,6 @@ import type { BoneName, CharacterSpec, Pose } from '../game/types';
  * поэтому новый персонаж — это просто новые числа в CharacterSpec.
  * Скелет смотрит в +X, конечности свисают в -Y (см. poses.ts).
  */
-
-interface Dims {
-  hipHeight: number;
-  torsoLen: number;
-  torsoWidth: number;
-  torsoDepth: number;
-  headSize: number;
-  shoulderY: number;
-  shoulderZ: number;
-  upperArm: number;
-  foreArm: number;
-  armWidth: number;
-  hipZ: number;
-  thigh: number;
-  shin: number;
-  legWidth: number;
-}
-
-function dimensions(spec: CharacterSpec): Dims {
-  const { height, bulk, headScale, limbLength, shoulderSpread } = spec.build;
-  const h = 1.78 * height;
-  const legs = h * 0.47 * limbLength;
-  return {
-    hipHeight: legs,
-    torsoLen: h * 0.32,
-    torsoWidth: 0.34 * bulk * shoulderSpread,
-    torsoDepth: 0.22 * bulk,
-    headSize: 0.2 * headScale * (1 + (bulk - 1) * 0.3),
-    shoulderY: h * 0.28,
-    shoulderZ: 0.19 * bulk * shoulderSpread,
-    upperArm: h * 0.18 * limbLength,
-    foreArm: h * 0.17 * limbLength,
-    armWidth: 0.1 * bulk,
-    hipZ: 0.1 * bulk,
-    thigh: legs * 0.52,
-    shin: legs * 0.48,
-    legWidth: 0.13 * bulk,
-  };
-}
 
 function box(w: number, h: number, d: number, mat: THREE.Material, yOffset: number): THREE.Mesh {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);

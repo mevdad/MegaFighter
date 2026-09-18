@@ -19,14 +19,15 @@ interface Blueprint {
   specials: CharacterSpec['specials'];
   finisher: CharacterSpec['finisher'];
   silhouette: CharacterSpec['silhouette'];
+  model?: CharacterSpec['model'];
 }
 
 const BLUEPRINTS: Blueprint[] = [
   {
     id: 'kaira',
     name: 'КАЙРА',
-    title: 'Ртутный клинок',
-    bio: 'Беглый прототип боевого андроида. Не помнит, кем была до перепрошивки, и не собирается вспоминать.',
+    title: 'Скорость улиц',
+    bio: 'Выросла на подземных аренах нижнего яруса. Дерётся в наушниках — говорит, так лучше слышно чужой ритм.',
     style: 'Рашдаун · давление вплотную',
     palette: { primary: 0x1fb6c9, secondary: 0x123b47, accent: 0x7ef3ff, skin: 0xd7c3a8, trim: 0xe8f7ff, aura: 0x6ff0ff },
     build: { height: 0.97, bulk: 0.86, headScale: 0.98, limbLength: 1.02, shoulderSpread: 0.94 },
@@ -42,7 +43,7 @@ const BLUEPRINTS: Blueprint[] = [
     },
     tuning: { reach: 1.0, power: 1.02, speed: 1.16 },
     specials: [
-      MF.makeSpecial(MF.PROJECTILE, 'dart', 'Ртутный дротик', 'Быстрый короткий снаряд. Держит противника на месте.', {
+      MF.makeSpecial(MF.PROJECTILE, 'dart', 'Звуковой импульс', 'Быстрый короткий снаряд. Держит противника на месте.', {
         damage: 62,
         startup: 11,
         recovery: 22,
@@ -57,8 +58,9 @@ const BLUEPRINTS: Blueprint[] = [
       }),
       MF.makeSpecial(MF.SUPER, 'cascade', 'Каскад лезвий', 'Супер за полную шкалу.', { damage: 248 }),
     ],
-    finisher: { name: 'НОЛЬ КЕЛЬВИНА', description: 'Мгновенная заморозка арены вокруг противника.' },
+    finisher: { name: 'ПОСЛЕДНИЙ ТРЕК', description: 'Один удар точно в долю — и бой заканчивается на сильной ноте.' },
     silhouette: 'visor',
+    model: { url: 'models/michelle.glb', faceYaw: Math.PI / 2 },
   },
   {
     id: 'obsidian',
@@ -111,7 +113,7 @@ const BLUEPRINTS: Blueprint[] = [
       defense: 1.0,
       meterRate: 1.2,
     },
-    tuning: { reach: 1.04, power: 1.06, speed: 1.02 },
+    tuning: { reach: 1.04, power: 1.02, speed: 1.02 },
     specials: [
       MF.makeSpecial(MF.PROJECTILE, 'arc', 'Дуговой разряд', 'Дальнобойный снаряд. Основа зонинга.', {
         damage: 80,
@@ -286,7 +288,7 @@ const BLUEPRINTS: Blueprint[] = [
       defense: 1.0,
       meterRate: 1.04,
     },
-    tuning: { reach: 1.0, power: 0.98, speed: 1.0 },
+    tuning: { reach: 1.0, power: 0.94, speed: 0.98 },
     specials: [
       MF.makeSpecial(MF.PROJECTILE, 'bolt', 'Импульс', 'Стандартный снаряд.', { damage: 78 }),
       MF.makeSpecial(MF.CHARGE, 'piston', 'Поршень', 'Таран с рывком.', { damage: 106 }),
@@ -295,6 +297,7 @@ const BLUEPRINTS: Blueprint[] = [
     ],
     finisher: { name: 'ПЕРЕЗАПИСЬ', description: 'Протокол спарринга закрывается принудительно.' },
     silhouette: 'visor',
+    model: { url: 'models/soldier.glb', faceYaw: -Math.PI / 2 },
   },
 ];
 
@@ -312,6 +315,7 @@ function fromBlueprint(bp: Blueprint): CharacterSpec {
     specials: bp.specials.map((s) => MF.tune(s, bp.tuning)),
     finisher: bp.finisher,
     silhouette: bp.silhouette,
+    model: bp.model,
   };
 }
 

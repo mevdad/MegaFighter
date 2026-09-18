@@ -11,7 +11,7 @@ import {
   MAX_METER,
   STAGE_HALF_WIDTH,
 } from './constants';
-import type { CharacterSpec, Facing, InputState, Move, Pose, SpecialMove } from './types';
+import type { Button, CharacterSpec, Facing, InputState, Move, Pose, SpecialMove } from './types';
 
 export type FighterState =
   | 'intro'
@@ -40,6 +40,30 @@ const DASH_FRAMES = 14;
 const WAKEUP_FRAMES = 22;
 const KNOCKDOWN_FRAMES = 26;
 
+/**
+ * Сколько кадров живёт отложенный ввод. Без буфера приём нужно нажимать ровно в кадр,
+ * когда кончилось восстановление, — именно из-за этого управление ощущается «вязким».
+ */
+const BUFFER_FRAMES = 9;
+/** Неуязвимость на подъёме: иначе противник просто стоит сверху и бьёт бесконечно. */
+const WAKEUP_INVULN = 11;
+/** Неуязвимость в начале рывка назад — единственный честный способ выйти из давления. */
+const BACKDASH_INVULN = 7;
+/** Потолок попаданий по летящему противнику: без него подброс = бесконечное комбо. */
+const MAX_JUGGLE = 4;
+const THROW_RANGE = 1.15;
+/** Окно, в которое брошенный успевает вырваться. */
+const THROW_TECH_WINDOW = 10;
+
+/** Ранг нормали для чейнов: слабое → сильное. Цепочка идёт только вверх. */
+export function moveRank(id: string): number {
+  if (id.endsWith('lp')) return 0;
+  if (id.endsWith('lk')) return 1;
+  if (id.endsWith('hp')) return 2;
+  if (id.endsWith('hk')) return 3;
+  return 99;
+}
+
 export class Fighter {
   readonly spec: CharacterSpec;
   readonly index: 0 | 1;
@@ -63,12 +87,29 @@ export class Fighter {
   moveHasHit = false;
   /** Отмена нормали в спешл уже использована в этой цепочке. */
   cancelUsed = false;
+  /** Самый сильный удар, уже использованный в текущей цепочке нормалей. */
+  private chainRank = -1;
+
+  /** Отложенный ввод: кнопка, спешл и заявка на бросок живут до BUFFER_FRAMES кадров. */
+  private bufferedButton: Button | null = null;
+  private bufferedSpecial: SpecialMove | null = null;
+  private bufferedThrow = false;
+  private bufferLife = 0;
+
+  /** Кадры неуязвимости: подъём с земли и рывок назад. */
+  invulnFrames = 0;
+  /** Сколько раз подряд противника ударили в воздухе. */
+  juggleCount = 0;
 
   blocking = false;
   crouchBlocking = false;
 
+  /** Живая связка: рвётся, как только противник вышел из стана. */
   comboCount = 0;
   comboDamage = 0;
+  /** Итог последней связки — его и показывает HUD, пока не истечёт comboTimer. */
+  comboShownCount = 0;
+  comboShownDamage = 0;
   /** Кадры, в течение которых комбо-счётчик ещё показывается после последнего удара. */
   comboTimer = 0;
 
@@ -98,7 +139,14 @@ export class Fighter {
     this.moveHasHit = false;
     this.blocking = false;
     this.comboCount = 0;
+    this.comboDamage = 0;
+    this.comboShownCount = 0;
+    this.comboShownDamage = 0;
     this.comboTimer = 0;
+    this.invulnFrames = 0;
+    this.juggleCount = 0;
+    this.chainRank = -1;
+    this.clearBuffer();
     this.buffer.clear();
   }
 
@@ -178,13 +226,20 @@ export class Fighter {
   step(input: InputState, opponent: Fighter, controlsLocked: boolean): void {
     this.buffer.push(input, this.facing);
     this.animTime += 1;
+    if (this.invulnFrames > 0) this.invulnFrames -= 1;
+    if (this.bufferLife > 0) {
+      this.bufferLife -= 1;
+      if (this.bufferLife === 0) this.clearBuffer();
+    }
+    // Намерение считывается каждый кадр, даже в восстановлении: в этом весь смысл буфера.
+    if (!controlsLocked) this.scanIntent(opponent);
     if (this.flashFrames > 0) this.flashFrames -= 1;
     if (this.auraFrames > 0) this.auraFrames -= 1;
     if (this.comboTimer > 0) {
       this.comboTimer -= 1;
       if (this.comboTimer === 0) {
-        this.comboCount = 0;
-        this.comboDamage = 0;
+        this.comboShownCount = 0;
+        this.comboShownDamage = 0;
       }
     }
 
@@ -233,8 +288,17 @@ export class Fighter {
   private stepStun(): void {
     if (this.stateFrame >= this.stunFrames) {
       this.blocking = false;
+      // Вышел из стана — связка окончена. Иначе отдельные тычки склеивались бы
+      // в одно «комбо» и масштабирование урона душило бы обычный размен.
+      this.endCombo();
       this.setState(this.grounded ? 'idle' : 'jump');
     }
+  }
+
+  /** Связка на этом бойце закончилась: счётчик и масштабирование урона сбрасываются. */
+  endCombo(): void {
+    this.comboCount = 0;
+    this.comboDamage = 0;
   }
 
   private stunFrames = 0;
@@ -242,6 +306,9 @@ export class Fighter {
   private stepKnockdown(): void {
     if (this.grounded && this.stateFrame >= KNOCKDOWN_FRAMES) {
       this.setState('wakeup');
+      this.invulnFrames = WAKEUP_INVULN;
+      this.juggleCount = 0;
+      this.endCombo();
     }
   }
 
@@ -263,21 +330,28 @@ export class Fighter {
       this.move = null;
       this.moveFrame = 0;
       this.cancelUsed = false;
+      this.chainRank = -1;
       this.setState(this.grounded ? 'idle' : 'jump');
       return;
     }
-    // Отмена нормали в спешл: окно открывается с активных кадров и держится до конца приёма.
-    if (
-      !controlsLocked &&
-      move.cancelable &&
-      !this.cancelUsed &&
-      this.moveHasHit &&
-      this.moveFrame >= move.startup
-    ) {
-      const special = this.findSpecial();
-      if (special) {
-        this.cancelUsed = true;
-        this.startMove(special);
+    // Отмены открываются только после попадания и только с активных кадров:
+    // так связка — награда за попадание, а не бесплатная безопасная мешанина.
+    if (controlsLocked || !this.moveHasHit || this.moveFrame < move.startup) return;
+    if (!move.cancelable || this.bufferLife <= 0) return;
+
+    if (this.bufferedSpecial && !this.cancelUsed) {
+      const special = this.bufferedSpecial;
+      this.clearBuffer();
+      this.cancelUsed = true;
+      this.startMove(special);
+      return;
+    }
+    if (this.bufferedButton) {
+      const next = this.resolveNormal(this.bufferedButton);
+      // Чейн идёт только в более сильный удар, иначе джеб зациклился бы сам в себя.
+      if (next && moveRank(next.id) > this.chainRank) {
+        this.clearBuffer();
+        this.startMove(next);
       }
     }
   }
@@ -287,19 +361,8 @@ export class Fighter {
     const forward = this.facing === 1 ? 'right' : 'left';
     const back = this.facing === 1 ? 'left' : 'right';
 
-    // 1. Спешлы и супер — приоритет выше нормалей, иначе мотион съедается джебом.
-    const special = this.findSpecial();
-    if (special) {
-      this.startMove(special);
-      return;
-    }
-
-    // 2. Нормали.
-    const normal = this.findNormal();
-    if (normal) {
-      this.startMove(normal);
-      return;
-    }
+    // 1-2. Отложенный ввод: спешл, бросок или нормаль, нажатые чуть раньше, чем боец освободился.
+    if (this.consumeBuffer()) return;
 
     if (!this.grounded) {
       this.setState('jump');
@@ -315,6 +378,7 @@ export class Fighter {
     if (b.doubleTap(4)) {
       this.dashDir = -this.facing as Facing;
       this.setState('dash');
+      this.invulnFrames = BACKDASH_INVULN;
       return;
     }
 
@@ -351,6 +415,80 @@ export class Fighter {
     this.setState('idle');
   }
 
+  private clearBuffer(): void {
+    this.bufferedButton = null;
+    this.bufferedSpecial = null;
+    this.bufferedThrow = false;
+    this.bufferLife = 0;
+  }
+
+  /** Считывает намерение игрока и кладёт его в буфер — выполнится, как только боец освободится. */
+  private scanIntent(opponent: Fighter): void {
+    const special = this.findSpecial();
+    if (special) {
+      this.clearBuffer();
+      this.bufferedSpecial = special;
+      this.bufferLife = BUFFER_FRAMES;
+      return;
+    }
+    if (this.wantsThrow(opponent)) {
+      this.clearBuffer();
+      this.bufferedThrow = true;
+      this.bufferLife = BUFFER_FRAMES;
+      return;
+    }
+    const button = (['hp', 'hk', 'lp', 'lk'] as const).find((key) => this.buffer.pressed(key));
+    if (button) {
+      this.clearBuffer();
+      this.bufferedButton = button;
+      this.bufferLife = BUFFER_FRAMES;
+    }
+  }
+
+  /** Бросок заявляется слабой рукой и слабой ногой одновременно и только вплотную. */
+  private wantsThrow(opponent: Fighter): boolean {
+    if (!this.grounded || !opponent.grounded) return false;
+    if (Math.abs(opponent.x - this.x) > THROW_RANGE) return false;
+    const lp = this.buffer.pressed('lp') && this.buffer.pressedWithin('lk', 3);
+    const lk = this.buffer.pressed('lk') && this.buffer.pressedWithin('lp', 3);
+    return lp || lk;
+  }
+
+  /** Успел ли боец нажать бросок в ответ — тогда захват срывается. */
+  canTechThrow(): boolean {
+    return this.buffer.pressedWithin('lp', THROW_TECH_WINDOW) && this.buffer.pressedWithin('lk', THROW_TECH_WINDOW);
+  }
+
+  /** Выполняет отложенный ввод, если он подходит текущему состоянию. */
+  private consumeBuffer(): boolean {
+    if (this.bufferLife <= 0) return false;
+
+    if (this.bufferedSpecial) {
+      const special = this.bufferedSpecial;
+      if (this.grounded || special.airOk) {
+        this.clearBuffer();
+        this.startMove(special);
+        return true;
+      }
+      return false;
+    }
+    if (this.bufferedThrow) {
+      if (!this.grounded) return false;
+      this.clearBuffer();
+      this.startMove(this.spec.normals.throw);
+      return true;
+    }
+    if (this.bufferedButton) {
+      const move = this.resolveNormal(this.bufferedButton);
+      if (move) {
+        this.clearBuffer();
+        this.startMove(move);
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** Ищет подходящий спешл по буферу ввода. Порядок важен: супер проверяется первым. */
   private findSpecial(): SpecialMove | null {
     const specials = this.spec.specials;
@@ -363,26 +501,23 @@ export class Fighter {
     return null;
   }
 
-  private findNormal(): Move | null {
-    const b = this.buffer;
-    const air = !this.grounded;
-    const crouch = b.held('down');
-    const pressed = (['hp', 'hk', 'lp', 'lk'] as const).find((key) => b.pressed(key));
-    if (!pressed) return null;
-
+  /** Подбирает нормаль под кнопку и текущую стойку — в воздухе, в присяде или стоя. */
+  private resolveNormal(button: Button): Move | null {
+    if (button === 'block') return null;
     const normals = this.spec.normals;
-    if (air) {
-      if (pressed === 'lp' || pressed === 'hp') return normals['j.lp'];
-      return normals['j.hk'];
+    if (!this.grounded) {
+      return button === 'lp' || button === 'hp' ? normals['j.lp'] : normals['j.hk'];
     }
-    if (crouch) {
-      const key = `cr.${pressed}`;
-      return normals[key] ?? normals[`cr.${pressed === 'hp' ? 'hp' : 'lp'}`] ?? normals['cr.lp'];
+    if (this.buffer.held('down')) {
+      return normals[`cr.${button}`] ?? normals['cr.lp'];
     }
-    return normals[pressed];
+    return normals[button] ?? null;
   }
 
   private startMove(move: Move): void {
+    const rank = moveRank(move.id);
+    // Цепочка живёт, пока идут нормали; спешл её завершает.
+    this.chainRank = rank === 99 ? -1 : Math.max(this.chainRank, rank);
     this.move = move;
     this.moveFrame = 0;
     this.moveHasHit = false;
@@ -405,8 +540,15 @@ export class Fighter {
     this.flashFrames = 8;
     this.move = null;
     this.blocking = false;
+    this.clearBuffer();
+    this.chainRank = -1;
     this.vx = move.knockback.x * fromFacing;
-    if (move.knockback.y > 0) this.vy = move.knockback.y;
+
+    if (!this.grounded) this.juggleCount += 1;
+    // После потолка жонглирования подброс не работает: комбо обязано закончиться.
+    const canLift = this.juggleCount <= MAX_JUGGLE;
+    if (move.knockback.y > 0 && canLift) this.vy = move.knockback.y;
+    else if (!this.grounded) this.vy = Math.min(this.vy, 0);
 
     if (!this.alive) {
       this.setState('ko');
@@ -416,7 +558,7 @@ export class Fighter {
     }
     if (move.knockdown || move.launcher || !this.grounded) {
       this.setState(move.knockdown ? 'knockdown' : 'hitstun');
-      if (move.launcher && this.vy <= 0) this.vy = move.knockback.y || 0.16;
+      if (move.launcher && this.vy <= 0 && canLift) this.vy = move.knockback.y || 0.16;
     } else {
       this.setState('hitstun');
     }
@@ -455,6 +597,7 @@ export class Fighter {
       }
       this.vx *= GROUND_FRICTION;
       if (Math.abs(this.vx) < 0.002) this.vx = 0;
+      if (this.state !== 'hitstun' && this.state !== 'knockdown') this.juggleCount = 0;
     }
 
     const limit = STAGE_HALF_WIDTH - this.halfWidth;

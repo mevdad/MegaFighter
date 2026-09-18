@@ -17,6 +17,7 @@ export class Hud {
   private readonly combos: [HTMLElement, HTMLElement];
   private readonly timerEl = el('div', 'timer', '99');
   private readonly announceSub = el('span', 'announce__sub');
+  private readonly labelEl = el('div', 'flashlabel');
   private readonly announceText = document.createTextNode('');
 
   constructor(private readonly layer: HTMLElement) {
@@ -51,7 +52,7 @@ export class Hud {
     this.combos = [el('div', 'combo combo--left'), el('div', 'combo combo--right')];
     this.announceEl.append(this.announceText, this.announceSub);
 
-    layer.append(this.root, this.combos[0], this.combos[1], this.announceEl);
+    layer.append(this.root, this.combos[0], this.combos[1], this.labelEl, this.announceEl);
     this.setVisible(false);
   }
 
@@ -59,6 +60,7 @@ export class Hud {
     const display = visible ? '' : 'none';
     this.root.style.display = visible ? 'grid' : 'none';
     for (const c of this.combos) c.style.display = display;
+    this.labelEl.style.display = display;
     this.announceEl.style.display = display;
   }
 
@@ -90,11 +92,11 @@ export class Hud {
 
       // Комбо показываем над тем, КТО его делает, поэтому берём счётчик жертвы напротив.
       const victim = match.fighters[1 - i];
-      const on = victim.comboCount > 1 && victim.comboTimer > 0;
+      const on = victim.comboShownCount > 1 && victim.comboTimer > 0;
       this.combos[i].classList.toggle('combo--on', on);
       if (on) {
-        this.combos[i].textContent = `${victim.comboCount} УДАРОВ`;
-        this.combos[i].append(el('span', '', `${victim.comboDamage} урона`));
+        this.combos[i].textContent = `${victim.comboShownCount} УДАРОВ`;
+        this.combos[i].append(el('span', '', `${victim.comboShownDamage} урона`));
       }
     });
 
@@ -109,6 +111,14 @@ export class Hud {
     // Принудительный reflow — иначе повторное объявление не перезапустит анимацию.
     void this.announceEl.offsetWidth;
     this.announceEl.classList.add('announce--show');
+  }
+
+  /** Короткая подпись поверх боя: контрудар, срыв захвата. */
+  flashLabel(text: string): void {
+    this.labelEl.textContent = text;
+    this.labelEl.classList.remove('flashlabel--show');
+    void this.labelEl.offsetWidth;
+    this.labelEl.classList.add('flashlabel--show');
   }
 
   toast(text: string): void {

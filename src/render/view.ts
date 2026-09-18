@@ -1,17 +1,40 @@
 import * as THREE from 'three';
 import { Effects } from './effects';
 import { FighterModel } from './fighterModel';
+import { RealisticModel } from './realisticModel';
+import { getLoaded } from './assets';
 import { SceneView } from './scene';
 import { Stage } from './stage';
 import { audio } from '../core/audio';
 import type { GameEvent, Match } from '../game/match';
 import type { Projectile } from '../game/combat';
+import type { CharacterSpec, Pose } from '../game/types';
+
+/**
+ * Что нужно виду от «шкуры» бойца. За интерфейсом стоят две реализации:
+ * процедурные примитивы и настоящая модель человека с ретаргетом.
+ */
+export interface FighterVisual {
+  readonly root: THREE.Object3D;
+  place(x: number, y: number, facing: 1 | -1): void;
+  applyPose(pose: Pose, smoothing: number): void;
+  setEffects(flash: number, aura: number): void;
+  dispose(): void;
+}
+
+function makeVisual(spec: CharacterSpec): FighterVisual {
+  if (spec.model) {
+    const loaded = getLoaded(spec.model.url);
+    if (loaded) return new RealisticModel(spec, loaded, spec.model.faceYaw);
+  }
+  return new FighterModel(spec);
+}
 
 /** Соединяет симуляцию с графикой: модели бойцов, снаряды, эффекты и звук по событиям. */
 export class BattleView {
   private readonly stage = new Stage();
   private readonly effects = new Effects();
-  private models: [FighterModel, FighterModel] | null = null;
+  private models: [FighterVisual, FighterVisual] | null = null;
   private readonly projectileMeshes = new Map<Projectile, THREE.Mesh>();
   private readonly projectileGeo = new THREE.SphereGeometry(1, 12, 10);
   private time = 0;
@@ -29,7 +52,7 @@ export class BattleView {
         m.dispose();
       }
     }
-    this.models = [new FighterModel(match.fighters[0].spec), new FighterModel(match.fighters[1].spec)];
+    this.models = [makeVisual(match.fighters[0].spec), makeVisual(match.fighters[1].spec)];
     for (const m of this.models) this.view.scene.add(m.root);
     for (const [, mesh] of this.projectileMeshes) this.view.scene.remove(mesh);
     this.projectileMeshes.clear();
@@ -39,13 +62,20 @@ export class BattleView {
     for (const e of events) {
       switch (e.type) {
         case 'hit': {
-          const power = e.power === 'super' ? 2.4 : e.power === 'special' ? 1.7 : e.power === 'heavy' ? 1.4 : 1;
-          this.effects.burst(e.x, e.y, e.color, Math.round(14 * power), power);
-          this.effects.ring(e.x, e.y, e.color, power, 20);
+          const base = e.power === 'super' ? 2.4 : e.power === 'special' ? 1.7 : e.power === 'heavy' ? 1.4 : 1;
+          // Контрудар должен читаться мгновенно: ярче вспышка, шире кольцо, сильнее тряска.
+          const power = e.counter ? base * 1.45 : base;
+          this.effects.burst(e.x, e.y, e.counter ? 0xffe066 : e.color, Math.round(14 * power), power);
+          this.effects.ring(e.x, e.y, e.counter ? 0xffc43d : e.color, power, e.counter ? 26 : 20);
           this.view.shake(0.12 * power + e.damage / 900);
           audio.play(e.power);
           break;
         }
+        case 'throwTech':
+          this.effects.burst(e.x, e.y, 0xffffff, 16, 1.2);
+          this.effects.ring(e.x, e.y, 0xffffff, 1.1, 18);
+          audio.play('block');
+          break;
         case 'block':
           this.effects.burst(e.x, e.y, 0xbfd8ff, 8, 0.7);
           this.effects.ring(e.x, e.y, 0x9fc4ff, 0.7, 14);

@@ -49,14 +49,19 @@ export function samplePoseClip(clip: PoseClip, t: number): Pose {
 /* Базовые стойки                                                       */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Боевая стойка: плечи почти опущены, локти сильно согнуты — кулаки уходят к подбородку.
+ * Раньше руки были вытянуты вперёд, и на настоящей модели это читалось не как гард,
+ * а как «тянется обняться».
+ */
 export const IDLE: Pose = {
   hips: [0, deg(-14), 0],
   torso: [0, deg(-6), deg(3)],
   head: [0, deg(12), 0],
-  shoulderR: [deg(-24), 0, deg(38)],
-  elbowR: [0, 0, deg(75)],
-  shoulderL: [deg(18), 0, deg(26)],
-  elbowL: [0, 0, deg(88)],
+  shoulderR: [deg(-20), 0, deg(14)],
+  elbowR: [0, 0, deg(126)],
+  shoulderL: [deg(16), 0, deg(4)],
+  elbowL: [0, 0, deg(142)],
   hipR: [0, 0, deg(16)],
   kneeR: [0, 0, deg(-24)],
   hipL: [0, 0, deg(-18)],
@@ -67,8 +72,9 @@ export const IDLE: Pose = {
 export const IDLE_BREATH: Pose = {
   ...IDLE,
   torso: [0, deg(-6), deg(6)],
-  shoulderR: [deg(-24), 0, deg(44)],
-  shoulderL: [deg(18), 0, deg(32)],
+  shoulderR: [deg(-20), 0, deg(20)],
+  elbowR: [0, 0, deg(120)],
+  shoulderL: [deg(16), 0, deg(10)],
   head: [0, deg(12), deg(-3)],
   offset: [0, 0.02, 0],
 };
@@ -137,10 +143,10 @@ export const BLOCK_HIGH: Pose = {
   hips: [0, deg(-26), 0],
   torso: [0, deg(-14), deg(-6)],
   head: [0, deg(20), deg(6)],
-  shoulderR: [deg(-40), 0, deg(96)],
-  elbowR: [0, 0, deg(126)],
-  shoulderL: [deg(34), 0, deg(92)],
-  elbowL: [0, 0, deg(130)],
+  shoulderR: [deg(-30), 0, deg(52)],
+  elbowR: [0, 0, deg(146)],
+  shoulderL: [deg(26), 0, deg(44)],
+  elbowL: [0, 0, deg(150)],
   hipR: [0, 0, deg(22)],
   kneeR: [0, 0, deg(-30)],
   hipL: [0, 0, deg(-24)],

@@ -38,6 +38,8 @@ export function comboScaling(hits: number): number {
  * в воздухе блока нет вообще: прыжок — это осознанный риск.
  */
 export function canBlock(defender: Fighter, move: Move, attackerX: number): boolean {
+  // Захваты проходят сквозь блок — иначе «сесть в блок» было бы бесплатной стратегией.
+  if (move.unblockable) return false;
   if (!defender.grounded) return false;
   if (defender.state === 'attack' || defender.state === 'hitstun' || defender.state === 'knockdown') return false;
   if (defender.state === 'dash' || defender.state === 'wakeup') return false;
@@ -59,9 +61,23 @@ export function testHit(attacker: Fighter, defender: Fighter): HitResult {
   const hitbox = attacker.hitbox;
   const move = attacker.move;
   if (!hitbox || !move) return 'miss';
+  // Кадры неуязвимости на подъёме и в рывке назад.
+  if (defender.invulnFrames > 0) return 'miss';
   if (!rectsOverlap(hitbox, defender.hurtbox)) return 'miss';
   return canBlock(defender, move, attacker.x) ? 'block' : 'hit';
 }
+
+/**
+ * Контрудар: попадание по противнику, который уже начал свою атаку, но ещё не вышел
+ * на активные кадры. Это главная награда за чтение соперника, поэтому и урон, и стан больше.
+ */
+export function isCounterHit(defender: Fighter): boolean {
+  const move = defender.move;
+  return defender.state === 'attack' && !!move && defender.moveFrame < move.startup;
+}
+
+export const COUNTER_DAMAGE = 1.3;
+export const COUNTER_HITSTUN = 6;
 
 export function projectileRect(p: Projectile): Rect {
   return { x: p.x, y: p.y, w: p.radius * 2, h: p.radius * 2 };

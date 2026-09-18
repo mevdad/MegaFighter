@@ -49,6 +49,15 @@ export class InputBuffer {
     return cur[key] && !(this.prev?.[key] ?? false);
   }
 
+  /** Была ли кнопка нажата (именно фронт) в последние `window` кадров. */
+  pressedWithin(key: InputKey, window: number): boolean {
+    const start = Math.max(1, this.frames.length - window);
+    for (let i = this.frames.length - 1; i >= start; i -= 1) {
+      if (this.frames[i].state[key] && !this.frames[i - 1].state[key]) return true;
+    }
+    return false;
+  }
+
   anyAttackPressed(): boolean {
     return BUTTONS.some((b) => b !== 'block' && this.pressed(b));
   }

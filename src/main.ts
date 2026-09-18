@@ -9,6 +9,7 @@ import { ROSTER } from './characters/roster';
 import { generateCharacter } from './characters/generator';
 import { SceneView } from './render/scene';
 import { BattleView } from './render/view';
+import { preload } from './render/assets';
 import { Hud } from './ui/hud';
 import { TouchControls, isTouchDevice } from './ui/touch';
 import { ControlsScreen, PauseScreen, ResultScreen, SelectScreen, TitleScreen } from './ui/screens';
@@ -125,6 +126,7 @@ class App {
     window.addEventListener('keydown', unlock, { once: true });
 
     this.goto(this.title);
+    this.loadAssets(layer);
 
     const loop = new GameLoop(
       () => this.step(),
@@ -134,6 +136,28 @@ class App {
   }
 
   private currentDifficulty: Difficulty = 'normal';
+
+  /**
+   * Модели людей грузятся в фоне: игра уже крутится и показывает меню,
+   * а как только файлы приедут — бойцы с моделями пересобираются.
+   * Если загрузка не удалась, все останутся процедурными, и это играбельно.
+   */
+  private loadAssets(layer: HTMLElement): void {
+    const urls = [...new Set(ROSTER.map((c) => c.model?.url).filter((u): u is string => !!u))];
+    if (urls.length === 0) return;
+
+    const bar = el('div', 'loading__bar');
+    const box = el('div', 'loading', el('div', 'loading__text', 'ЗАГРУЗКА БОЙЦОВ'), el('div', 'loading__track', bar));
+    layer.append(box);
+
+    void preload(urls, (done, total) => {
+      bar.style.transform = `scaleX(${done / total})`;
+    }).then(() => {
+      box.remove();
+      // Пересобираем текущий спарринг, чтобы модели появились сразу, а не со следующего боя.
+      this.battleView.setMatch(this.match);
+    });
+  }
 
   private makeDemoMatch(): Match {
     // Фон меню — живой спарринг двух случайных бойцов: сцена не выглядит пустой.
@@ -223,6 +247,8 @@ class App {
     if (this.mode === 'fight') {
       for (const e of events) {
         if (e.type === 'announce') this.hud.announce(e.text, e.sub);
+        if (e.type === 'hit' && e.counter) this.hud.flashLabel('КОНТРУДАР');
+        if (e.type === 'throwTech') this.hud.flashLabel('СРЫВ ЗАХВАТА');
       }
       this.hud.update(this.match);
     }

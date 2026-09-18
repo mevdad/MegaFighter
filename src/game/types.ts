@@ -106,6 +106,10 @@ export interface Move {
   airOnly?: boolean;
   /** Можно выполнять и в воздухе. */
   airOk?: boolean;
+  /** Блок не помогает — так работают захваты. */
+  unblockable?: boolean;
+  /** Бросок: противник может вырваться, нажав ту же комбинацию в окно техники. */
+  throwable?: boolean;
   clip: PoseClip;
   sfx: 'light' | 'heavy' | 'kick' | 'special' | 'super';
   /** Цвет эффекта попадания; по умолчанию берётся из ауры персонажа. */
@@ -172,6 +176,11 @@ export interface CharacterSpec {
   specials: SpecialMove[];
   /** Добивание — стилизованный энергетический финиш, без расчленёнки. */
   finisher: { name: string; description: string };
-  /** Особая деталь силуэта: рога, маска, плащ, наплечники. */
+  /** Особая деталь силуэта: рога, маска, плащ, наплечники. Для внешних моделей не используется. */
   silhouette: 'horns' | 'visor' | 'cape' | 'pauldrons' | 'topknot' | 'halo';
+  /**
+   * Внешняя модель человека вместо процедурной. Скелет и фрейм-дата те же —
+   * меняется только «шкура», см. realisticModel.ts.
+   */
+  model?: { url: string; faceYaw: number };
 }

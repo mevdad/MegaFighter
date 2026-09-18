@@ -239,6 +239,43 @@ button {
   color: var(--gold);
 }
 
+.flashlabel {
+  position: absolute;
+  top: 46%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: clamp(16px, 3.6vmin, 26px);
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(255, 196, 61, 0.7), 0 3px 8px #000;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.flashlabel--show {
+  animation: flashlabel 0.75s ease-out forwards;
+}
+
+@keyframes flashlabel {
+  0% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+
 .announce {
   position: absolute;
   top: 34%;
@@ -689,6 +726,19 @@ button {
   letter-spacing: 0.1em;
 }
 
+.tbtn--grab {
+  position: absolute;
+  right: calc(min(38vmin, 200px) + 18px + var(--safe-right));
+  bottom: calc(14px + var(--safe-bottom));
+  width: min(20vmin, 96px);
+  height: min(8vmin, 44px);
+  border-radius: 24px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  background: rgba(120, 200, 255, 0.18);
+  border-color: rgba(150, 215, 255, 0.45);
+}
+
 .tbtn--special {
   position: absolute;
   left: calc(14px + var(--safe-left));
@@ -789,4 +839,39 @@ button {
   .rotate--on {
     display: grid;
   }
+}
+
+/* ------------------------------------------------------ Загрузка моделей */
+
+.loading {
+  position: absolute;
+  left: 50%;
+  bottom: calc(18px + var(--safe-bottom));
+  transform: translateX(-50%);
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  pointer-events: none;
+}
+
+.loading__text {
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  color: var(--muted);
+}
+
+.loading__track {
+  width: min(52vw, 260px);
+  height: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.loading__bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--p1), var(--gold));
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 220ms ease-out;
 }

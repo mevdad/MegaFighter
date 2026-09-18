@@ -1,5 +1,14 @@
 import { Fighter } from './fighter';
-import { comboScaling, projectileRect, rectsOverlap, testHit, type Projectile } from './combat';
+import {
+  COUNTER_DAMAGE,
+  COUNTER_HITSTUN,
+  comboScaling,
+  isCounterHit,
+  projectileRect,
+  rectsOverlap,
+  testHit,
+  type Projectile,
+} from './combat';
 import {
   FPS,
   HITSTOP_HEAVY,
@@ -15,7 +24,17 @@ import type { CharacterSpec, InputState, Move } from './types';
 export type MatchPhase = 'intro' | 'fight' | 'ko' | 'roundEnd' | 'matchEnd';
 
 export type GameEvent =
-  | { type: 'hit'; x: number; y: number; color: number; power: Move['sfx']; victim: 0 | 1; damage: number }
+  | {
+      type: 'hit';
+      x: number;
+      y: number;
+      color: number;
+      power: Move['sfx'];
+      victim: 0 | 1;
+      damage: number;
+      counter: boolean;
+    }
+  | { type: 'throwTech'; x: number; y: number }
   | { type: 'block'; x: number; y: number; color: number; victim: 0 | 1 }
   | { type: 'whiff'; x: number; y: number; power: Move['sfx'] }
   | { type: 'projectile'; x: number; y: number; color: number }
@@ -224,8 +243,18 @@ export class Match {
     const contactY = move.hitbox.y || 1.1;
     const color = move.fx ?? attacker.spec.palette.aura;
 
+    // Бросок можно сорвать встречным броском — расходятся оба, урона нет.
+    if (move.throwable && defender.canTechThrow()) {
+      attacker.vx = -attacker.facing * 0.16;
+      defender.vx = attacker.facing * 0.16;
+      this.hitstop = Math.max(this.hitstop, 8);
+      this.events.push({ type: 'throwTech', x: contactX, y: contactY });
+      return;
+    }
+
     if (result === 'block') {
       const chip = Math.round(move.chip * defender.spec.stats.defense);
+      defender.endCombo();
       defender.applyBlock(move, chip, attacker.facing);
       attacker.addMeter(move.meterGain * 0.4);
       defender.addMeter(move.meterGain * 0.6);
@@ -234,21 +263,38 @@ export class Match {
       return;
     }
 
-    const scaled = move.damage * comboScaling(defender.comboCount) * defender.spec.stats.defense;
+    const counter = isCounterHit(defender);
+    const scaled =
+      move.damage *
+      comboScaling(defender.comboCount) *
+      defender.spec.stats.defense *
+      (counter ? COUNTER_DAMAGE : 1);
     const damage = Math.max(6, Math.round(scaled));
-    defender.applyHit(move, damage, attacker.facing);
+    const applied = counter ? { ...move, hitstun: move.hitstun + COUNTER_HITSTUN } : move;
+    defender.applyHit(applied, damage, attacker.facing);
 
     defender.comboCount += 1;
     defender.comboDamage += damage;
+    defender.comboShownCount = defender.comboCount;
+    defender.comboShownDamage = defender.comboDamage;
     defender.comboTimer = 90;
     attacker.addMeter(move.meterGain);
     defender.addMeter(move.meterGain * 0.35);
 
     const stop =
       move.sfx === 'super' ? HITSTOP_SPECIAL + 4 : move.sfx === 'special' ? HITSTOP_SPECIAL : move.sfx === 'heavy' ? HITSTOP_HEAVY : HITSTOP_LIGHT;
-    this.hitstop = Math.max(this.hitstop, stop);
+    this.hitstop = Math.max(this.hitstop, counter ? stop + 4 : stop);
     this.shake = Math.max(this.shake, damage / 160);
-    this.events.push({ type: 'hit', x: contactX, y: contactY, color, power: move.sfx, victim: defender.index, damage });
+    this.events.push({
+      type: 'hit',
+      x: contactX,
+      y: contactY,
+      color,
+      power: move.sfx,
+      victim: defender.index,
+      damage,
+      counter,
+    });
   }
 
   private spawnProjectile(owner: 0 | 1, move: Move, attacker: Fighter): void {
@@ -294,6 +340,7 @@ export class Match {
     for (const p of this.projectiles) {
       if (p.dead) continue;
       const defender = this.fighters[1 - p.owner];
+      if (defender.invulnFrames > 0) continue;
       if (!rectsOverlap(projectileRect(p), defender.hurtbox)) continue;
       p.dead = true;
 

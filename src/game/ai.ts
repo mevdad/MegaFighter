@@ -11,16 +11,18 @@ interface Profile {
   decisionInterval: number;
   aggression: number;
   blockChance: number;
+  /** Как часто ИИ ловит «засидевшегося» в блоке броском. */
+  throwChance: number;
   specialChance: number;
   antiAirChance: number;
   punishChance: number;
 }
 
 const PROFILES: Record<Difficulty, Profile> = {
-  easy: { reaction: 22, decisionInterval: 34, aggression: 0.4, blockChance: 0.25, specialChance: 0.12, antiAirChance: 0.15, punishChance: 0.1 },
-  normal: { reaction: 14, decisionInterval: 24, aggression: 0.58, blockChance: 0.5, specialChance: 0.28, antiAirChance: 0.4, punishChance: 0.3 },
-  hard: { reaction: 8, decisionInterval: 16, aggression: 0.72, blockChance: 0.72, specialChance: 0.45, antiAirChance: 0.65, punishChance: 0.55 },
-  nightmare: { reaction: 4, decisionInterval: 11, aggression: 0.85, blockChance: 0.88, specialChance: 0.62, antiAirChance: 0.85, punishChance: 0.78 },
+  easy: { reaction: 22, decisionInterval: 34, aggression: 0.4, blockChance: 0.25, throwChance: 0.05, specialChance: 0.12, antiAirChance: 0.15, punishChance: 0.1 },
+  normal: { reaction: 14, decisionInterval: 24, aggression: 0.58, blockChance: 0.5, throwChance: 0.16, specialChance: 0.28, antiAirChance: 0.4, punishChance: 0.3 },
+  hard: { reaction: 8, decisionInterval: 16, aggression: 0.72, blockChance: 0.72, throwChance: 0.28, specialChance: 0.45, antiAirChance: 0.65, punishChance: 0.55 },
+  nightmare: { reaction: 4, decisionInterval: 11, aggression: 0.85, blockChance: 0.88, throwChance: 0.4, specialChance: 0.62, antiAirChance: 0.85, punishChance: 0.78 },
 };
 
 /** Один кадр «нажатий», которые ИИ отыгрывает по сценарию. */
@@ -34,7 +36,14 @@ export class AiController {
   private holdFrames = 0;
   private decisionTimer = 0;
   /** Кольцо снимков противника — из него читаем «устаревшее» состояние для задержки реакции. */
-  private history: Array<{ state: string; x: number; y: number; attacking: boolean; recovering: boolean }> = [];
+  private history: Array<{
+    state: string;
+    x: number;
+    y: number;
+    attacking: boolean;
+    recovering: boolean;
+    blocking: boolean;
+  }> = [];
 
   constructor(difficulty: Difficulty = 'normal', seed: number = Date.now()) {
     this.profile = PROFILES[difficulty];
@@ -76,12 +85,26 @@ export class AiController {
     const move = foe.move;
     const recovering =
       foe.state === 'attack' && !!move && foe.moveFrame > move.startup + move.active;
-    this.history.push({ state: foe.state, x: foe.x, y: foe.y, attacking: foe.state === 'attack', recovering });
+    this.history.push({
+      state: foe.state,
+      x: foe.x,
+      y: foe.y,
+      attacking: foe.state === 'attack',
+      recovering,
+      blocking: foe.state === 'blockstun' || (foe.blocking && foe.state !== 'attack'),
+    });
     if (this.history.length > 40) this.history.shift();
   }
 
   /** Состояние противника, каким ИИ его «видит» с учётом задержки реакции. */
-  private perceived(): { state: string; x: number; y: number; attacking: boolean; recovering: boolean } | null {
+  private perceived(): {
+    state: string;
+    x: number;
+    y: number;
+    attacking: boolean;
+    recovering: boolean;
+    blocking: boolean;
+  } | null {
     const index = this.history.length - 1 - this.profile.reaction;
     return index >= 0 ? this.history[index] : null;
   }
@@ -167,12 +190,24 @@ export class AiController {
       return;
     }
 
-    // 6. Вплотную: бить, ставить микс-ап или отступать.
+    // 6. Вплотную: бросок против «сидит в блоке», связка, микс-ап или отход.
+    // Противник держит блок — бить бесполезно, зато бросок проходит насквозь.
+    if (view.blocking && this.rng.chance(p.throwChance * 2)) {
+      this.queue([['lp', 'lk'], ['lp', 'lk'], []]);
+      return;
+    }
+
     const roll = this.rng.next();
+    if (roll < p.throwChance) {
+      this.queue([['lp', 'lk'], ['lp', 'lk'], []]);
+      return;
+    }
     if (roll < p.aggression * 0.45) {
-      // Связка: быстрый удар с отменой в спешл.
+      // Настоящая цепочка: слабый удар переходит в сильный, а тот отменяется в спешл.
       const special = this.pickSpecial(self, (s) => !s.projectile && !s.meterCost);
-      const starter: MacroFrame[] = this.rng.chance(0.5) ? [['lp'], [], ['lp'], []] : [['down', 'lk'], [], ['down', 'lk'], []];
+      const starter: MacroFrame[] = this.rng.chance(0.5)
+        ? [['lp'], [], ['lk'], [], ['hp'], []]
+        : [['down', 'lk'], [], ['down', 'lp'], [], ['hp'], []];
       this.queue(starter);
       if (special && this.rng.chance(p.specialChance)) this.queueSpecial(special, forward, true);
       return;

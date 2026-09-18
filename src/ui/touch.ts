@@ -31,6 +31,19 @@ export class TouchControls implements InputSource {
     for (const [key, cls, label] of defs) buttons.append(this.makeButton(key, cls, label));
 
     const block = this.makeButton('block', 'tbtn tbtn--block', 'БЛОК');
+
+    // Бросок — это слабая рука и слабая нога одновременно. Свести два пальца
+    // в один кадр на экране нереально, поэтому кнопка жмёт обе кнопки за игрока.
+    const grab = el('button', 'tbtn tbtn--grab', 'БРОСОК');
+    grab.type = 'button';
+    grab.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      grab.classList.add('tbtn--active');
+      this.macro = [['lp', 'lk'], ['lp', 'lk'], []];
+    });
+    const releaseGrab = () => grab.classList.remove('tbtn--active');
+    grab.addEventListener('pointerup', releaseGrab);
+    grab.addEventListener('pointercancel', releaseGrab);
     const special = el('button', 'tbtn tbtn--special', 'СПЕШЛ');
     special.type = 'button';
     special.addEventListener('pointerdown', (e) => {
@@ -42,7 +55,7 @@ export class TouchControls implements InputSource {
     special.addEventListener('pointerup', release);
     special.addEventListener('pointercancel', release);
 
-    this.root.append(pad, buttons, block, special);
+    this.root.append(pad, buttons, block, grab, special);
   }
 
   private makeButton(key: InputKey, cls: string, label: string): HTMLButtonElement {
