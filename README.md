@@ -56,10 +56,16 @@ npm run preview    # посмотреть собранную версию
 сырой TypeScript, который браузер исполнить не может. Эта публикация завершается позже нашей
 и затирает собранный `dist/`, так что по адресу открывается пустая страница.
 
-В workflow это закрыто параметром `enablement: true` у `actions/configure-pages` — он
-переводит источник на публикацию через Actions. Если после первого прогона в списке Actions
-всё ещё появляется «pages build and deployment», переключите источник руками:
-**Settings → Pages → Build and deployment → Source: `GitHub Actions`** — и перезапустите workflow.
+В workflow стоит `enablement: true` у `actions/configure-pages`, но он включает Pages только
+там, где они ещё не включены вовсе, и **не меняет источник** у уже настроенного сайта.
+Проверено на этом репозитории: после прогона с `enablement: true` штатная сборка из ветки
+запустилась снова. Так что переключение — это одно действие руками, его не заменить кодом:
+
+**Settings → Pages → Build and deployment → Source: `GitHub Actions`**
+
+После переключения «pages build and deployment» перестанет появляться в Actions.
+Чтобы не ждать следующего пуша, запустите публикацию сразу:
+**Actions → Deploy to GitHub Pages → Run workflow**.
 
 Проверить, что сейчас опубликовано, можно так: открыть `https://mevdad.github.io/MegaFighter/`
 и посмотреть исходный код страницы. Если там `src="./assets/index-*.js"` — выложена сборка,
