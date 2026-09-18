@@ -34,7 +34,12 @@ jobs:
       # npm run build — это tsc --noEmit + vite build, так что типы проверяются здесь же.
       - run: npm run build
 
+      # enablement: true переключает источник Pages на публикацию через Actions.
+      # Без него в репозитории параллельно работает штатная сборка из ветки,
+      # которая выкладывает исходники как есть и затирает результат этого workflow.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
