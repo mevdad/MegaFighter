@@ -177,7 +177,7 @@ export class FighterModel {
    * Накладывает позу со сглаживанием. smoothing=1 — мгновенно (нужно для ударов,
    * иначе быстрый джеб «не доезжает» до вытянутой руки).
    */
-  applyPose(pose: Pose, smoothing: number): void {
+  applyPose(pose: Pose, smoothing: number, _grounded = true): void {
     const names: BoneName[] = [
       'hips',
       'torso',

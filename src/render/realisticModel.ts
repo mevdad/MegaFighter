@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Rig, dimensions } from './rig';
+import { Rig, dimensions, type Dims } from './rig';
 import { instantiate, type LoadedModel } from './assets';
 import type { BoneName, CharacterSpec, Pose } from '../game/types';
 
@@ -32,7 +32,18 @@ interface Link {
   source: BoneName;
   bone: THREE.Object3D;
   child: THREE.Object3D;
+  /** Поворот кости в исходной позе модели. */
+  bind: THREE.Quaternion;
 }
+
+interface FootLink {
+  bone: THREE.Object3D;
+  /** Поворот ступни относительно всей модели в исходной позе — по нему она ставится ровно. */
+  bindInHolder: THREE.Quaternion;
+}
+
+/** Ступня считается «на земле» ниже этой высоты — тогда её выравниваем. */
+const FOOT_GROUND_Y = 0.24;
 
 /**
  * GLTFLoader санирует имена узлов и выбрасывает двоеточие, так что в сцене кость
@@ -50,8 +61,51 @@ function boneKey(name: string): string {
  */
 const FINGER_CURL = { base: 1.15, mid: 1.4, thumb: 0.5 };
 
+/**
+ * Снимает пропорции с исходной позы модели. Наши позы описаны в системе процедурного рига,
+ * поэтому риг обязан быть точной «палочной» копией модели — иначе стопы и таз расходятся
+ * с землёй на любой позе, где боец опускается.
+ */
+function measureDims(byName: Map<string, THREE.Object3D>, fallback: Dims): Dims {
+  const pos = (name: string): THREE.Vector3 | null => {
+    const bone = byName.get(boneKey(name));
+    if (!bone) return null;
+    bone.updateWorldMatrix(true, false);
+    return bone.getWorldPosition(new THREE.Vector3());
+  };
+  const dist = (a: THREE.Vector3 | null, b: THREE.Vector3 | null, def: number): number =>
+    a && b ? a.distanceTo(b) : def;
+
+  const hips = pos('mixamorig:Hips');
+  const neck = pos('mixamorig:Neck');
+  const armL = pos('mixamorig:LeftArm');
+  const armR = pos('mixamorig:RightArm');
+  const foreL = pos('mixamorig:LeftForeArm');
+  const handL = pos('mixamorig:LeftHand');
+  const upLegL = pos('mixamorig:LeftUpLeg');
+  const upLegR = pos('mixamorig:RightUpLeg');
+  const legL = pos('mixamorig:LeftLeg');
+  const footL = pos('mixamorig:LeftFoot');
+
+  return {
+    ...fallback,
+    hipHeight: hips ? hips.y : fallback.hipHeight,
+    torsoLen: hips && neck ? neck.y - hips.y : fallback.torsoLen,
+    shoulderY: hips && armL ? armL.y - hips.y : fallback.shoulderY,
+    // Поперечные смещения берём как половину расстояния между парными костями:
+    // так значение не зависит от того, как модель развёрнута.
+    shoulderZ: armL && armR ? armL.distanceTo(armR) / 2 : fallback.shoulderZ,
+    hipZ: upLegL && upLegR ? upLegL.distanceTo(upLegR) / 2 : fallback.hipZ,
+    upperArm: dist(armL, foreL, fallback.upperArm),
+    foreArm: dist(foreL, handL, fallback.foreArm),
+    thigh: dist(upLegL, legL, fallback.thigh),
+    shin: dist(legL, footL, fallback.shin),
+  };
+}
+
 const TMP_Q = new THREE.Quaternion();
 const TMP_Q2 = new THREE.Quaternion();
+const TMP_QP = new THREE.Quaternion();
 const TMP_A = new THREE.Vector3();
 const TMP_B = new THREE.Vector3();
 const TMP_DIR = new THREE.Vector3();
@@ -62,6 +116,9 @@ export class RealisticModel {
   private readonly rig: Rig;
   private readonly holder = new THREE.Group();
   private readonly links: Link[] = [];
+  private readonly feet: FootLink[] = [];
+  /** Кости, по которым проверяется, не ушла ли модель под пол. */
+  private readonly groundProbes: THREE.Object3D[] = [];
   private readonly materials: THREE.MeshStandardMaterial[] = [];
   private readonly auraLight: THREE.PointLight;
   private readonly baseColors: THREE.Color[] = [];
@@ -72,22 +129,19 @@ export class RealisticModel {
     /** Доворот модели, чтобы в покое она смотрела в +X. */
     faceYaw: number,
   ) {
-    const dims = dimensions(spec);
-    this.rig = new Rig(dims);
-    this.root = this.rig.root;
+    const specDims = dimensions(spec);
 
     const scene = instantiate(model);
     this.holder.add(scene);
     this.holder.rotation.y = faceYaw;
-    // Модель висит внутри body, поэтому разворот бойца и смещение позы она получает даром.
-    this.rig.body.add(this.holder);
 
     // Подгоняем рост модели под габариты персонажа, чтобы хитбоксы совпадали с картинкой.
     scene.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(scene);
     const modelHeight = box.max.y - box.min.y;
-    const scale = modelHeight > 0.01 ? dims.height / modelHeight : 1;
+    const scale = modelHeight > 0.01 ? specDims.height / modelHeight : 1;
     this.holder.scale.setScalar(scale);
+    this.holder.updateMatrixWorld(true);
 
     const byName = new Map<string, THREE.Object3D>();
     scene.traverse((obj) => {
@@ -102,12 +156,36 @@ export class RealisticModel {
       }
     });
 
+    // Риг строится по НАСТОЯЩИМ длинам костей модели. Пока пропорции расходились,
+    // поза приседа опускала бойца сильнее, чем складывались его ноги, и ступни уходили под пол.
+    const dims = measureDims(byName, specDims);
+    this.rig = new Rig(dims);
+    this.root = this.rig.root;
+    // Модель висит внутри body, поэтому разворот бойца и смещение позы она получает даром.
+    this.rig.body.add(this.holder);
+
     this.makeFists(byName);
 
     for (const entry of BONE_MAP) {
       const bone = byName.get(boneKey(entry.bone));
       const child = byName.get(boneKey(entry.child));
-      if (bone && child) this.links.push({ source: entry.source, bone, child });
+      if (bone && child) this.links.push({ source: entry.source, bone, child, bind: bone.quaternion.clone() });
+    }
+
+    // Ступни не участвуют в ретаргете и просто наследуют поворот голени,
+    // из-за чего носки уезжали в пол. Запоминаем их исходный поворот, чтобы ставить ровно.
+    this.rig.root.updateMatrixWorld(true);
+    const holderQuat = this.holder.getWorldQuaternion(new THREE.Quaternion());
+    for (const name of ['mixamorigLeftFoot', 'mixamorigRightFoot']) {
+      const bone = byName.get(name);
+      if (!bone) continue;
+      const world = bone.getWorldQuaternion(new THREE.Quaternion());
+      this.feet.push({ bone, bindInHolder: holderQuat.clone().invert().multiply(world) });
+      this.groundProbes.push(bone);
+    }
+    for (const name of ['mixamorigHips', 'mixamorigHead', 'mixamorigLeftHand', 'mixamorigRightHand']) {
+      const bone = byName.get(name);
+      if (bone) this.groundProbes.push(bone);
     }
 
     this.auraLight = new THREE.PointLight(spec.palette.aura, 0, 3.4, 2);
@@ -150,14 +228,21 @@ export class RealisticModel {
     this.rig.place(x, y, facing);
   }
 
-  applyPose(pose: Pose, smoothing: number): void {
+  applyPose(pose: Pose, smoothing: number, grounded = true): void {
+    this.holder.position.y = 0;
     this.rig.applyPose(pose, smoothing);
     this.rig.root.updateMatrixWorld(true);
     this.retarget();
+    this.levelFeet();
+    if (grounded) this.clampToGround();
   }
 
   /** Доворачивает каждую кость модели так, чтобы она смотрела как соответствующая кость рига. */
   private retarget(): void {
+    // Считаем от исходной позы, а не от результата прошлого кадра: иначе скрутка вокруг
+    // оси кости никогда не исправляется и модель со временем «перекручивает» конечности.
+    for (const link of this.links) link.bone.quaternion.copy(link.bind);
+
     for (const link of this.links) {
       const desired = this.rig.boneDirection(link.source, TMP_DIR);
 
@@ -183,6 +268,42 @@ export class RealisticModel {
       }
       link.bone.updateMatrixWorld(true);
     }
+  }
+
+  /** Ставит ступни ровно, если они у земли: иначе носки протыкают пол. */
+  private levelFeet(): void {
+    const holderQuat = this.holder.getWorldQuaternion(TMP_Q2);
+    for (const foot of this.feet) {
+      foot.bone.updateWorldMatrix(true, false);
+      if (foot.bone.getWorldPosition(TMP_A).y > FOOT_GROUND_Y) continue;
+
+      const desired = TMP_Q.copy(holderQuat).multiply(foot.bindInHolder);
+      const parent = foot.bone.parent;
+      if (parent) {
+        const parentQuat = parent.getWorldQuaternion(TMP_QP);
+        foot.bone.quaternion.copy(parentQuat.invert().multiply(desired));
+      } else {
+        foot.bone.quaternion.copy(desired);
+      }
+      foot.bone.updateMatrixWorld(true);
+    }
+  }
+
+  /**
+   * Поднимает модель, если она ушла под пол. Смещение позы двигает бойца целиком,
+   * а ноги модели длиннее, чем у процедурного рига, — без этой поправки в присяде
+   * и в нокдауне ступни проваливаются сквозь арену.
+   */
+  private clampToGround(): void {
+    let lowest = Infinity;
+    for (const probe of this.groundProbes) {
+      probe.updateWorldMatrix(true, false);
+      lowest = Math.min(lowest, probe.getWorldPosition(TMP_A).y);
+    }
+    if (!Number.isFinite(lowest)) return;
+    // Ступня сидит чуть выше подошвы, поэтому небольшой запас оставляем.
+    const target = 0.06;
+    if (lowest < target) this.holder.position.y += (target - lowest) / this.holder.scale.y;
   }
 
   setEffects(flash: number, aura: number): void {

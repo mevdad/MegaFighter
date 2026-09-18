@@ -99,19 +99,25 @@ export const WALK_B: Pose = {
   offset: [-0.04, -0.1, 0],
 };
 
+/**
+ * Присед — настоящий сквот: оба бедра уходят вперёд, обе голени назад, ступни остаются
+ * под тазом. Раньше задняя нога складывалась назад и вверх, и на живой модели это
+ * выглядело сломанной птичьей лапой.
+ * Смещение подобрано так, чтобы подъём от сгиба ног его компенсировал и стопы стояли на полу.
+ */
 export const CROUCH: Pose = {
   hips: [0, deg(-16), 0],
-  torso: [0, deg(-8), deg(14)],
-  head: [0, deg(14), deg(-8)],
-  shoulderR: [deg(-20), 0, deg(52)],
-  elbowR: [0, 0, deg(96)],
-  shoulderL: [deg(16), 0, deg(40)],
-  elbowL: [0, 0, deg(104)],
-  hipR: [0, 0, deg(74)],
-  kneeR: [0, 0, deg(-118)],
-  hipL: [0, 0, deg(-58)],
-  kneeL: [0, 0, deg(-104)],
-  offset: [0, -0.62, 0],
+  torso: [0, deg(-8), deg(16)],
+  head: [0, deg(14), deg(-12)],
+  shoulderR: [deg(-22), 0, deg(26)],
+  elbowR: [0, 0, deg(124)],
+  shoulderL: [deg(18), 0, deg(16)],
+  elbowL: [0, 0, deg(136)],
+  hipR: [0, 0, deg(66)],
+  kneeR: [0, 0, deg(-116)],
+  hipL: [0, 0, deg(62)],
+  kneeL: [0, 0, deg(-112)],
+  offset: [0, -0.39, 0],
 };
 
 export const JUMP_RISE: Pose = {
@@ -160,7 +166,7 @@ export const BLOCK_LOW: Pose = {
   elbowR: [0, 0, deg(128)],
   shoulderL: [deg(26), 0, deg(84)],
   elbowL: [0, 0, deg(132)],
-  offset: [-0.04, -0.62, 0],
+  offset: [-0.04, -0.39, 0],
 };
 
 export const HIT_HIGH: Pose = {
@@ -198,6 +204,30 @@ export const KNOCKDOWN: Pose = {
   hipL: [0, 0, deg(24)],
   kneeL: [0, 0, deg(-40)],
   offset: [-0.3, -0.58, 0],
+};
+
+/** Оглушён: руки висят, корпус согнут, голова опущена. */
+export const DAZED: Pose = {
+  hips: [0, deg(-6), deg(-4)],
+  torso: [0, deg(-4), deg(20)],
+  head: [0, deg(6), deg(24)],
+  shoulderR: [deg(-10), 0, deg(-8)],
+  elbowR: [0, 0, deg(26)],
+  shoulderL: [deg(8), 0, deg(-12)],
+  elbowL: [0, 0, deg(22)],
+  hipR: [0, 0, deg(8)],
+  kneeR: [0, 0, deg(-18)],
+  hipL: [0, 0, deg(-10)],
+  kneeL: [0, 0, deg(-14)],
+  offset: [-0.04, -0.12, 0],
+};
+
+export const DAZED_SWAY: Pose = {
+  ...DAZED,
+  hips: [0, deg(-6), deg(6)],
+  torso: [0, deg(-4), deg(14)],
+  head: [0, deg(6), deg(18)],
+  offset: [0.04, -0.08, 0],
 };
 
 export const VICTORY: Pose = {

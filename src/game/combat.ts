@@ -63,6 +63,8 @@ export function testHit(attacker: Fighter, defender: Fighter): HitResult {
   if (!hitbox || !move) return 'miss';
   // Кадры неуязвимости на подъёме и в рывке назад.
   if (defender.invulnFrames > 0) return 'miss';
+  // Присед уводит голову из-под высоких ударов — за это и приседают.
+  if (move.height === 'high' && defender.ducking) return 'miss';
   if (!rectsOverlap(hitbox, defender.hurtbox)) return 'miss';
   return canBlock(defender, move, attacker.x) ? 'block' : 'hit';
 }

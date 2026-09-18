@@ -21,7 +21,7 @@ import {
 } from './constants';
 import type { CharacterSpec, InputState, Move } from './types';
 
-export type MatchPhase = 'intro' | 'fight' | 'ko' | 'roundEnd' | 'matchEnd';
+export type MatchPhase = 'intro' | 'fight' | 'ko' | 'finish' | 'roundEnd' | 'matchEnd';
 
 export type GameEvent =
   | {
@@ -35,6 +35,7 @@ export type GameEvent =
       counter: boolean;
     }
   | { type: 'throwTech'; x: number; y: number }
+  | { type: 'finisher'; x: number; color: number; name: string }
   | { type: 'block'; x: number; y: number; color: number; victim: 0 | 1 }
   | { type: 'whiff'; x: number; y: number; power: Move['sfx'] }
   | { type: 'projectile'; x: number; y: number; color: number }
@@ -49,6 +50,10 @@ export type GameEvent =
 const INTRO_FRAMES = 150;
 const KO_FRAMES = 150;
 const ROUND_END_FRAMES = 90;
+/** Окно на добивание после последнего нокаута. */
+const FINISH_FRAMES = 230;
+/** Пауза после добивания, чтобы эффект успел отыграть. */
+const FINISH_HOLD = 110;
 
 export class Match {
   readonly fighters: [Fighter, Fighter];
@@ -108,6 +113,9 @@ export class Match {
       case 'ko':
         this.stepKo(inputs);
         return;
+      case 'finish':
+        this.stepFinish(inputs);
+        return;
       case 'roundEnd':
         this.stepRoundEnd();
         return;
@@ -153,29 +161,82 @@ export class Match {
 
   private stepKo(inputs: [InputState, InputState]): void {
     this.stepFrozen(inputs);
-    if (this.phaseFrame >= KO_FRAMES) {
+    if (this.phaseFrame < KO_FRAMES) return;
+
+    const winner = this.roundWinner;
+    if (winner !== null) this.wins[winner] += 1;
+    this.events.push({ type: 'roundEnd', winner });
+
+    // Последний нокаут в матче — момент добивания, как в Mortal Kombat.
+    if (winner !== null && this.wins[winner] >= ROUNDS_TO_WIN) {
+      this.matchWinner = winner;
+      const loser = (1 - winner) as 0 | 1;
+      this.fighters[loser].state = 'dazed';
+      this.fighters[loser].stateFrame = 0;
+      this.phase = 'finish';
+      this.phaseFrame = 0;
+      this.finisherDone = false;
+      this.events.push({ type: 'announce', text: 'ДОБЕЙ ЕГО', sub: '↓ + СИЛЬНАЯ РУКА' });
+      return;
+    }
+
+    this.phase = 'roundEnd';
+    this.phaseFrame = 0;
+    if (winner !== null) {
+      this.fighters[winner].state = 'victory';
+      this.fighters[winner].stateFrame = 0;
+    }
+    this.events.push({
+      type: 'announce',
+      text: winner === null ? 'НИЧЬЯ' : `${this.fighters[winner].spec.name} — РАУНД`,
+    });
+  }
+
+  /** Добивание выполнено в этом матче. */
+  finisherDone = false;
+
+  /**
+   * Окно добивания: проигравший стоит оглушённый, победитель может ввести ↓ + сильная рука.
+   * Не успел — матч просто заканчивается победой, добивание не обязательно.
+   */
+  private stepFinish(inputs: [InputState, InputState]): void {
+    const winner = this.matchWinner ?? 0;
+    const loser = (1 - winner) as 0 | 1;
+    this.fighters.forEach((f, i) => f.step(inputs[i], this.fighters[1 - i], true));
+    this.separate();
+
+    if (!this.finisherDone) {
+      const b = this.fighters[winner].buffer;
+      if (b.pressed('hp') && b.held('down')) {
+        this.finisherDone = true;
+        this.phaseFrame = 0;
+        const spec = this.fighters[winner].spec;
+        this.fighters[loser].state = 'knockdown';
+        this.fighters[loser].stateFrame = 0;
+        this.hitstop = 18;
+        this.shake = 1.4;
+        this.events.push({
+          type: 'finisher',
+          x: this.fighters[loser].x,
+          color: spec.palette.aura,
+          name: spec.finisher.name,
+        });
+        this.events.push({ type: 'announce', text: spec.finisher.name });
+        return;
+      }
+    }
+
+    const limit = this.finisherDone ? FINISH_HOLD : FINISH_FRAMES;
+    if (this.phaseFrame >= limit) {
       this.phase = 'roundEnd';
       this.phaseFrame = 0;
-      const winner = this.roundWinner;
-      if (winner !== null) {
-        this.wins[winner] += 1;
-        this.fighters[winner].state = 'victory';
-        this.fighters[winner].stateFrame = 0;
-      }
-      this.events.push({ type: 'roundEnd', winner });
-      if (winner !== null && this.wins[winner] >= ROUNDS_TO_WIN) {
-        this.matchWinner = winner;
-        this.events.push({
-          type: 'announce',
-          text: `${this.fighters[winner].spec.name} ПОБЕЖДАЕТ`,
-          sub: this.fighters[winner].spec.finisher.name,
-        });
-      } else {
-        this.events.push({
-          type: 'announce',
-          text: winner === null ? 'НИЧЬЯ' : `${this.fighters[winner].spec.name} — РАУНД`,
-        });
-      }
+      this.fighters[winner].state = 'victory';
+      this.fighters[winner].stateFrame = 0;
+      this.events.push({
+        type: 'announce',
+        text: `${this.fighters[winner].spec.name} ПОБЕЖДАЕТ`,
+        sub: this.finisherDone ? this.fighters[winner].spec.finisher.name : undefined,
+      });
     }
   }
 

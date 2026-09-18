@@ -17,7 +17,7 @@ import type { CharacterSpec, Pose } from '../game/types';
 export interface FighterVisual {
   readonly root: THREE.Object3D;
   place(x: number, y: number, facing: 1 | -1): void;
-  applyPose(pose: Pose, smoothing: number): void;
+  applyPose(pose: Pose, smoothing: number, grounded: boolean): void;
   setEffects(flash: number, aura: number): void;
   dispose(): void;
 }
@@ -71,6 +71,11 @@ export class BattleView {
           audio.play(e.power);
           break;
         }
+        case 'finisher':
+          this.effects.column(e.x, e.color, 110);
+          this.view.shake(1.4);
+          audio.play('super');
+          break;
         case 'throwTech':
           this.effects.burst(e.x, e.y, 0xffffff, 16, 1.2);
           this.effects.ring(e.x, e.y, 0xffffff, 1.1, 18);
@@ -111,7 +116,7 @@ export class BattleView {
       model.place(fighter.x, fighter.y, fighter.facing);
       // Удары накладываются жёстко, стойки — со сглаживанием: иначе быстрый джеб «не доезжает».
       const smoothing = fighter.state === 'attack' ? 1 : 0.32;
-      model.applyPose(fighter.currentPose(), smoothing);
+      model.applyPose(fighter.currentPose(), smoothing, fighter.grounded);
       model.setEffects(fighter.flashFrames, fighter.auraFrames > 0 ? 1 : 0);
 
       // Пыль на взлёте и приземлении — бесплатная читаемость вертикали.

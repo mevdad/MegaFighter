@@ -117,7 +117,7 @@ export const LOW_JAB: PoseClip = [
       shoulderR: [0, 0, deg(86)],
       elbowR: [0, 0, deg(8)],
       torso: [0, deg(10), deg(16)],
-      offset: [0.14, -0.62, 0],
+      offset: [0.14, -0.39, 0],
     },
   },
   { t: 0.75, pose: { ...CROUCH, shoulderR: [0, 0, deg(60)], elbowR: [0, 0, deg(60)] } },
@@ -137,10 +137,10 @@ export const SWEEP: PoseClip = [
       kneeL: [0, 0, deg(-120)],
       torso: [0, deg(20), deg(30)],
       shoulderL: [deg(30), 0, deg(-40)],
-      offset: [0.22, -0.82, 0],
+      offset: [0.22, -0.52, 0],
     },
   },
-  { t: 0.78, pose: { ...CROUCH, hipR: [0, 0, deg(60)], kneeR: [0, 0, deg(-80)], offset: [0.06, -0.7, 0] } },
+  { t: 0.78, pose: { ...CROUCH, hipR: [0, 0, deg(60)], kneeR: [0, 0, deg(-80)], offset: [0.06, -0.45, 0] } },
   { t: 1, pose: CROUCH },
 ];
 
@@ -149,7 +149,7 @@ export const LOW_KICK: PoseClip = [
   { t: 0.34, pose: { ...CROUCH, hipR: [0, 0, deg(40)], kneeR: [0, 0, deg(-130)] } },
   {
     t: 0.5,
-    pose: { ...CROUCH, hipR: [0, 0, deg(72)], kneeR: [0, 0, deg(-30)], torso: [0, deg(8), deg(18)], offset: [0.12, -0.62, 0] },
+    pose: { ...CROUCH, hipR: [0, 0, deg(72)], kneeR: [0, 0, deg(-30)], torso: [0, deg(8), deg(18)], offset: [0.12, -0.39, 0] },
   },
   { t: 0.78, pose: { ...CROUCH, hipR: [0, 0, deg(60)], kneeR: [0, 0, deg(-100)] } },
   { t: 1, pose: CROUCH },

@@ -20,6 +20,12 @@ export class Effects {
   private cursor = 0;
 
   private readonly rings: Array<{ mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; life: number; max: number; scale: number }> = [];
+  /** Столб света для добивания. */
+  private readonly beam: THREE.Mesh;
+  private readonly beamMat: THREE.MeshBasicMaterial;
+  private beamLife = 0;
+  private beamMax = 1;
+  private readonly beamLight: THREE.PointLight;
 
   constructor() {
     this.sparkGeo.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
@@ -40,6 +46,23 @@ export class Effects {
     );
     points.frustumCulled = false;
     this.group.add(points);
+
+    this.beamMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    this.beam = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.3, 14, 20, 1, true), this.beamMat);
+    this.beam.position.y = 6;
+    this.beam.visible = false;
+    this.group.add(this.beam);
+
+    this.beamLight = new THREE.PointLight(0xffffff, 0, 14, 2);
+    this.beamLight.position.y = 2;
+    this.group.add(this.beamLight);
 
     const ringGeo = new THREE.RingGeometry(0.28, 0.42, 24);
     for (let i = 0; i < RING_POOL; i += 1) {
@@ -116,6 +139,19 @@ export class Effects {
     }
   }
 
+  /** Столб света: добивание должно читаться как событие, а не как обычный удар. */
+  column(x: number, color: number, frames = 90): void {
+    this.beam.position.x = x;
+    this.beam.visible = true;
+    this.beamMat.color.set(color);
+    this.beamLight.color.set(color);
+    this.beamLight.position.x = x;
+    this.beamLife = frames;
+    this.beamMax = frames;
+    this.burst(x, 1.0, color, 90, 2.6);
+    this.ring(x, 0.2, color, 3.2, 40);
+  }
+
   update(): void {
     for (let i = 0; i < SPARK_CAPACITY; i += 1) {
       if (this.life[i] <= 0) {
@@ -139,6 +175,18 @@ export class Effects {
     this.sparkGeo.attributes.position.needsUpdate = true;
     this.sparkGeo.attributes.color.needsUpdate = true;
     this.sparkGeo.attributes.size.needsUpdate = true;
+
+    if (this.beamLife > 0) {
+      this.beamLife -= 1;
+      const t = 1 - this.beamLife / this.beamMax;
+      this.beam.scale.set(0.4 + t * 1.4, 1, 0.4 + t * 1.4);
+      this.beamMat.opacity = 0.85 * (1 - t) ** 1.4;
+      this.beamLight.intensity = 22 * (1 - t) ** 2;
+      if (this.beamLife <= 0) {
+        this.beam.visible = false;
+        this.beamLight.intensity = 0;
+      }
+    }
 
     for (const r of this.rings) {
       if (r.life <= 0) {

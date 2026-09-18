@@ -27,6 +27,7 @@ export type FighterState =
   | 'knockdown'
   | 'wakeup'
   | 'ko'
+  | 'dazed'
   | 'victory';
 
 export interface Rect {
@@ -158,6 +159,18 @@ export class Fighter {
     return this.state === 'crouch' || (this.state === 'attack' && this.move?.id.startsWith('cr.') === true);
   }
 
+  /**
+   * Боец сидит в приседе. В Mortal Kombat это не только блок снизу, но и уклон:
+   * высокие удары проходят над головой.
+   */
+  get ducking(): boolean {
+    if (!this.grounded) return false;
+    if (this.state === 'crouch') return true;
+    if (this.state === 'attack') return this.move?.id.startsWith('cr.') ?? false;
+    if (this.state === 'blockstun') return this.crouchBlocking;
+    return false;
+  }
+
   get alive(): boolean {
     return this.health > 0;
   }
@@ -253,6 +266,7 @@ export class Fighter {
     switch (this.state) {
       case 'intro':
       case 'ko':
+      case 'dazed':
       case 'victory':
         this.applyPhysics();
         return;
@@ -629,6 +643,9 @@ export class Fighter {
       case 'knockdown':
       case 'ko':
         return P.KNOCKDOWN;
+      case 'dazed':
+        // Проигравший стоит и покачивается — классическая пауза перед добиванием.
+        return P.lerpPose(P.DAZED, P.DAZED_SWAY, this.cycle(34));
       case 'wakeup':
         return P.lerpPose(P.KNOCKDOWN, P.CROUCH, Math.min(1, this.stateFrame / WAKEUP_FRAMES));
       case 'crouch':
