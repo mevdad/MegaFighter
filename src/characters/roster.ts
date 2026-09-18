@@ -232,6 +232,7 @@ const BLUEPRINTS: Blueprint[] = [
     ],
     finisher: { name: 'КАМНЕПАД', description: 'Свод арены обрушивается точно по центру.' },
     silhouette: 'horns',
+    model: { url: 'models/warrior.glb', faceYaw: 0 },
   },
   {
     id: 'sirena',

@@ -14,7 +14,7 @@ import type { BoneName, CharacterSpec, Pose } from '../game/types';
  */
 
 /** Кость нашего рига → кость Mixamo, по которой считается направление. */
-const BONE_MAP: Array<{ source: BoneName; bone: string; child: string }> = [
+export const BONE_MAP: Array<{ source: BoneName; bone: string; child: string }> = [
   { source: 'hips', bone: 'mixamorig:Hips', child: 'mixamorig:Spine' },
   { source: 'torso', bone: 'mixamorig:Spine1', child: 'mixamorig:Neck' },
   { source: 'head', bone: 'mixamorig:Neck', child: 'mixamorig:Head' },
@@ -50,7 +50,7 @@ const FOOT_GROUND_Y = 0.24;
  * зовётся не «mixamorig:Hips», а «mixamorigHips». Сравниваем по ключу без разделителей,
  * чтобы работали оба варианта и модели из других экспортов.
  */
-function boneKey(name: string): string {
+export function boneKey(name: string): string {
   return name.replace(/[^a-z0-9]/gi, '').toLowerCase();
 }
 

@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "sim": "esbuild src/dev/simulate.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/sim.mjs --log-level=warning && node node_modules/.cache/sim.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "check:finisher": "esbuild src/dev/finisher.check.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/finisher.mjs --log-level=warning && node node_modules/.cache/finisher.mjs"
+    "check:finisher": "esbuild src/dev/finisher.check.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/finisher.mjs --log-level=warning && node node_modules/.cache/finisher.mjs",
+    "bake:mocap": "esbuild src/dev/bakeMocap.ts --bundle --format=esm --platform=node --external:node:fs --outfile=node_modules/.cache/bake.mjs --log-level=warning && node node_modules/.cache/bake.mjs",
+    "check:mocap": "esbuild src/dev/checkKickLerp.ts --bundle --format=esm --platform=node --external:node:fs --outfile=node_modules/.cache/checklerp.mjs --log-level=warning && node node_modules/.cache/checklerp.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"

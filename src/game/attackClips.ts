@@ -1,4 +1,5 @@
 import { CROUCH, IDLE, JUMP_FALL, deg } from './poses';
+import { MOCAP_KICK_PEAK, MOCAP_KICK_RECOVER, MOCAP_KICK_WINDUP } from './mocapPoses';
 import type { PoseClip } from './types';
 
 /**
@@ -178,35 +179,16 @@ export const MID_KICK: PoseClip = [
   { t: 1, pose: IDLE },
 ];
 
+/**
+ * Хай-кик запечён из настоящего мокапа (front_kick_02, npm run bake:mocap) —
+ * не нарисован вручную. Тайминги кадров синхронизированы с фрейм-датой хай-кика,
+ * меняется только форма позы.
+ */
 export const ROUNDHOUSE: PoseClip = [
   { t: 0, pose: IDLE },
-  {
-    t: 0.28,
-    pose: {
-      ...IDLE,
-      hips: [0, deg(-50), 0],
-      torso: [0, deg(-30), deg(-10)],
-      hipR: [0, 0, deg(40)],
-      kneeR: [0, 0, deg(-120)],
-    },
-  },
-  {
-    t: 0.5,
-    pose: {
-      ...IDLE,
-      hips: [0, deg(40), 0],
-      torso: [0, deg(30), deg(-26)],
-      head: [0, deg(20), deg(-14)],
-      hipR: [deg(-14), 0, deg(126)],
-      kneeR: [0, 0, deg(-14)],
-      hipL: [0, 0, deg(-26)],
-      kneeL: [0, 0, deg(-30)],
-      shoulderL: [deg(60), 0, deg(-70)],
-      shoulderR: [deg(-60), 0, deg(-40)],
-      offset: [0.2, 0.06, 0],
-    },
-  },
-  { t: 0.8, pose: { ...IDLE, hips: [0, deg(-20), 0], hipR: [0, 0, deg(50)], kneeR: [0, 0, deg(-80)] } },
+  { t: 0.28, pose: MOCAP_KICK_WINDUP },
+  { t: 0.5, pose: MOCAP_KICK_PEAK },
+  { t: 0.8, pose: MOCAP_KICK_RECOVER },
   { t: 1, pose: IDLE },
 ];
 

@@ -188,7 +188,7 @@ export const HIT_LOW: Pose = {
   ...HIT_HIGH,
   torso: [0, deg(-4), deg(26)],
   head: [0, deg(8), deg(20)],
-  offset: [-0.08, -0.34, 0],
+  offset: [-0.08, -0.39, 0],
 };
 
 export const KNOCKDOWN: Pose = {
