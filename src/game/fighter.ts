@@ -315,7 +315,8 @@ export class Fighter {
     this.comboDamage = 0;
   }
 
-  private stunFrames = 0;
+  /** Длительность текущего стана (хитстан/блокстан) в кадрах — читает рендер для скраба анимации. */
+  stunFrames = 0;
 
   private stepKnockdown(): void {
     if (this.grounded && this.stateFrame >= KNOCKDOWN_FRAMES) {

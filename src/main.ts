@@ -38,8 +38,8 @@ class App {
   private readonly pauseButton: HTMLButtonElement;
   private readonly rotateHint: HTMLElement;
 
-  constructor(canvas: HTMLCanvasElement, layer: HTMLElement) {
-    this.sceneView = new SceneView(canvas);
+  constructor(layer: HTMLElement, sceneView: SceneView) {
+    this.sceneView = sceneView;
     this.battleView = new BattleView(this.sceneView);
     this.hud = new Hud(layer);
 
@@ -143,14 +143,14 @@ class App {
    * Если загрузка не удалась, все останутся процедурными, и это играбельно.
    */
   private loadAssets(layer: HTMLElement): void {
-    const urls = [...new Set(ROSTER.map((c) => c.model?.url).filter((u): u is string => !!u))];
+    const urls = [...new Set(ROSTER.map((c) => c.animatedRig?.url).filter((u): u is string => !!u))];
     if (urls.length === 0) return;
 
     const bar = el('div', 'loading__bar');
     const box = el('div', 'loading', el('div', 'loading__text', 'ЗАГРУЗКА БОЙЦОВ'), el('div', 'loading__track', bar));
     layer.append(box);
 
-    void preload(urls, (done, total) => {
+    void preload(this.sceneView.app, urls, (done, total) => {
       bar.style.transform = `scaleX(${done / total})`;
     }).then(() => {
       box.remove();
@@ -278,4 +278,4 @@ class App {
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
 const layer = document.getElementById('ui') as HTMLElement;
-new App(canvas, layer);
+SceneView.create(canvas).then((sceneView) => new App(layer, sceneView));

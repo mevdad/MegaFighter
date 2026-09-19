@@ -5,10 +5,5 @@ export default defineConfig({
   server: { host: true },
   build: {
     target: 'es2020',
-    rollupOptions: {
-      output: {
-        manualChunks: { three: ['three'] },
-      },
-    },
   },
 });

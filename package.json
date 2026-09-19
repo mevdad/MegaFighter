@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Browser fighting game in the spirit of Mortal Kombat, built with Three.js",
+  "description": "Browser fighting game in the spirit of Mortal Kombat, built with PlayCanvas",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -12,15 +12,13 @@
     "sim": "esbuild src/dev/simulate.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/sim.mjs --log-level=warning && node node_modules/.cache/sim.mjs",
     "smoke": "node scripts/smoke.mjs",
     "check:finisher": "esbuild src/dev/finisher.check.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/finisher.mjs --log-level=warning && node node_modules/.cache/finisher.mjs",
-    "bake:mocap": "esbuild src/dev/bakeMocap.ts --bundle --format=esm --platform=node --external:node:fs --outfile=node_modules/.cache/bake.mjs --log-level=warning && node node_modules/.cache/bake.mjs",
     "check:mocap": "esbuild src/dev/checkKickLerp.ts --bundle --format=esm --platform=node --external:node:fs --outfile=node_modules/.cache/checklerp.mjs --log-level=warning && node node_modules/.cache/checklerp.mjs"
   },
   "dependencies": {
-    "three": "^0.180.0"
+    "playcanvas": "^2.22.2"
   },
   "devDependencies": {
     "@types/node": "^26.6.1",
-    "@types/three": "^0.180.0",
     "playwright": "^1.56.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.10"

@@ -19,7 +19,7 @@ interface Blueprint {
   specials: CharacterSpec['specials'];
   finisher: CharacterSpec['finisher'];
   silhouette: CharacterSpec['silhouette'];
-  model?: CharacterSpec['model'];
+  animatedRig?: CharacterSpec['animatedRig'];
 }
 
 const BLUEPRINTS: Blueprint[] = [
@@ -60,7 +60,6 @@ const BLUEPRINTS: Blueprint[] = [
     ],
     finisher: { name: 'ПОСЛЕДНИЙ ТРЕК', description: 'Один удар точно в долю — и бой заканчивается на сильной ноте.' },
     silhouette: 'visor',
-    model: { url: 'models/michelle.glb', faceYaw: Math.PI / 2 },
   },
   {
     id: 'obsidian',
@@ -232,7 +231,14 @@ const BLUEPRINTS: Blueprint[] = [
     ],
     finisher: { name: 'КАМНЕПАД', description: 'Свод арены обрушивается точно по центру.' },
     silhouette: 'horns',
-    model: { url: 'models/warrior.glb', faceYaw: 0 },
+    animatedRig: {
+      url: 'models/warrior2.glb',
+      yaw: 0,
+      idleClip: 'Боевая стойка',
+      punch: { clip: 'box_02', start: 0, end: 0.65 },
+      kick: { clip: 'front_kick_02', start: 0.35, end: 0.85 },
+      hitHigh: { clip: 'hit_to_head', start: 0, end: 0.5 },
+    },
   },
   {
     id: 'sirena',
@@ -298,7 +304,6 @@ const BLUEPRINTS: Blueprint[] = [
     ],
     finisher: { name: 'ПЕРЕЗАПИСЬ', description: 'Протокол спарринга закрывается принудительно.' },
     silhouette: 'visor',
-    model: { url: 'models/soldier.glb', faceYaw: -Math.PI / 2 },
   },
 ];
 
@@ -316,7 +321,7 @@ function fromBlueprint(bp: Blueprint): CharacterSpec {
     specials: bp.specials.map((s) => MF.tune(s, bp.tuning)),
     finisher: bp.finisher,
     silhouette: bp.silhouette,
-    model: bp.model,
+    animatedRig: bp.animatedRig,
   };
 }
 

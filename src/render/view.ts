@@ -1,61 +1,48 @@
-import * as THREE from 'three';
+import { Entity } from 'playcanvas';
 import { Effects } from './effects';
-import { FighterModel } from './fighterModel';
-import { RealisticModel } from './realisticModel';
-import { getLoaded } from './assets';
-import { SceneView } from './scene';
+import { ProceduralFighter } from './proceduralFighter';
+import { AnimatedFighter } from './animatedFighter';
+import { getLoadedContainer } from './assets';
+import { SceneView, hexColor } from './scene';
 import { Stage } from './stage';
+import { standardMat } from './material';
 import { audio } from '../core/audio';
 import type { GameEvent, Match } from '../game/match';
 import type { Projectile } from '../game/combat';
-import type { CharacterSpec, Pose } from '../game/types';
-
-/**
- * Что нужно виду от «шкуры» бойца. За интерфейсом стоят две реализации:
- * процедурные примитивы и настоящая модель человека с ретаргетом.
- */
-export interface FighterVisual {
-  readonly root: THREE.Object3D;
-  place(x: number, y: number, facing: 1 | -1): void;
-  applyPose(pose: Pose, smoothing: number, grounded: boolean): void;
-  setEffects(flash: number, aura: number): void;
-  dispose(): void;
-}
+import type { CharacterSpec } from '../game/types';
+import type { FighterVisual } from './fighterVisual';
 
 function makeVisual(spec: CharacterSpec): FighterVisual {
-  if (spec.model) {
-    const loaded = getLoaded(spec.model.url);
-    if (loaded) return new RealisticModel(spec, loaded, spec.model.faceYaw);
+  if (spec.animatedRig) {
+    const loaded = getLoadedContainer(spec.animatedRig.url);
+    if (loaded) return new AnimatedFighter(spec, loaded, spec.animatedRig);
   }
-  return new FighterModel(spec);
+  return new ProceduralFighter(spec);
 }
 
 /** Соединяет симуляцию с графикой: модели бойцов, снаряды, эффекты и звук по событиям. */
 export class BattleView {
   private readonly stage = new Stage();
-  private readonly effects = new Effects();
+  private readonly effects: Effects;
   private models: [FighterVisual, FighterVisual] | null = null;
-  private readonly projectileMeshes = new Map<Projectile, THREE.Mesh>();
-  private readonly projectileGeo = new THREE.SphereGeometry(1, 12, 10);
+  private readonly projectileEntities = new Map<Projectile, { entity: Entity; color: number }>();
   private time = 0;
   private wasAirborne: [boolean, boolean] = [false, false];
 
   constructor(private readonly view: SceneView) {
-    view.scene.add(this.stage.group);
-    view.scene.add(this.effects.group);
+    view.root.addChild(this.stage.root);
+    this.effects = new Effects(view.app);
+    view.root.addChild(this.effects.root);
   }
 
   setMatch(match: Match): void {
     if (this.models) {
-      for (const m of this.models) {
-        this.view.scene.remove(m.root);
-        m.dispose();
-      }
+      for (const m of this.models) m.dispose();
     }
     this.models = [makeVisual(match.fighters[0].spec), makeVisual(match.fighters[1].spec)];
-    for (const m of this.models) this.view.scene.add(m.root);
-    for (const [, mesh] of this.projectileMeshes) this.view.scene.remove(mesh);
-    this.projectileMeshes.clear();
+    for (const m of this.models) this.view.root.addChild(m.root);
+    for (const [, p] of this.projectileEntities) p.entity.destroy();
+    this.projectileEntities.clear();
   }
 
   handleEvents(events: GameEvent[]): void {
@@ -114,9 +101,13 @@ export class BattleView {
     match.fighters.forEach((fighter, i) => {
       const model = models[i];
       model.place(fighter.x, fighter.y, fighter.facing);
-      // Удары накладываются жёстко, стойки — со сглаживанием: иначе быстрый джеб «не доезжает».
-      const smoothing = fighter.state === 'attack' ? 1 : 0.32;
-      model.applyPose(fighter.currentPose(), smoothing, fighter.grounded);
+      if (model.sync) {
+        model.sync(fighter);
+      } else {
+        // Удары накладываются жёстко, стойки — со сглаживанием: иначе быстрый джеб «не доезжает».
+        const smoothing = fighter.state === 'attack' ? 1 : 0.32;
+        model.applyPose(fighter.currentPose(), smoothing, fighter.grounded);
+      }
       model.setEffects(fighter.flashFrames, fighter.auraFrames > 0 ? 1 : 0);
 
       // Пыль на взлёте и приземлении — бесплатная читаемость вертикали.
@@ -143,35 +134,34 @@ export class BattleView {
 
   private syncProjectiles(match: Match): void {
     const alive = new Set(match.projectiles);
-    for (const [p, mesh] of this.projectileMeshes) {
+    for (const [p, slot] of this.projectileEntities) {
       if (alive.has(p)) continue;
-      this.effects.burst(mesh.position.x, mesh.position.y, mesh.userData.color as number, 12, 1.1);
-      this.view.scene.remove(mesh);
-      this.projectileMeshes.delete(p);
+      const pos = slot.entity.getPosition();
+      this.effects.burst(pos.x, pos.y, slot.color, 12, 1.1);
+      slot.entity.destroy();
+      this.projectileEntities.delete(p);
     }
 
     for (const p of match.projectiles) {
-      let mesh = this.projectileMeshes.get(p);
-      if (!mesh) {
-        mesh = new THREE.Mesh(
-          this.projectileGeo,
-          new THREE.MeshStandardMaterial({
-            color: p.color,
-            emissive: new THREE.Color(p.color),
-            emissiveIntensity: 1.6,
-            roughness: 0.2,
-          }),
-        );
-        mesh.userData.color = p.color;
-        mesh.scale.setScalar(p.radius);
-        const light = new THREE.PointLight(p.color, 2.2, 5, 2);
-        mesh.add(light);
-        this.view.scene.add(mesh);
-        this.projectileMeshes.set(p, mesh);
+      let slot = this.projectileEntities.get(p);
+      if (!slot) {
+        const entity = new Entity('projectile');
+        entity.addComponent('render', {
+          type: 'sphere',
+          material: standardMat(p.color, { emissive: p.color, emissiveIntensity: 1.6, roughness: 0.2, metalness: 0.1 }),
+        });
+        entity.setLocalScale(p.radius * 2, p.radius * 2, p.radius * 2);
+        const light = new Entity('projectile-light');
+        light.addComponent('light', { type: 'omni', color: hexColor(p.color), intensity: 2.2, range: 5 });
+        entity.addChild(light);
+        this.view.root.addChild(entity);
+        slot = { entity, color: p.color };
+        this.projectileEntities.set(p, slot);
       }
-      mesh.position.set(p.x, p.y, 0);
-      mesh.rotation.z += 0.3 * p.facing;
-      mesh.scale.setScalar(p.radius * (1 + Math.sin(this.time * 0.4) * 0.08));
+      slot.entity.setPosition(p.x, p.y, 0);
+      slot.entity.rotate(0, 0, 0.3 * p.facing * (180 / Math.PI));
+      const s = p.radius * 2 * (1 + Math.sin(this.time * 0.4) * 0.08);
+      slot.entity.setLocalScale(s, s, s);
       // След за снарядом.
       if (this.time % 3 === 0) this.effects.burst(p.x, p.y, p.color, 2, 0.35);
     }

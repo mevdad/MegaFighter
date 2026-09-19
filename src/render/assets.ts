@@ -1,47 +1,57 @@
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { Asset, AssetListLoader, type AnimTrack, type AppBase, type ContainerResource, type Entity } from 'playcanvas';
 
-export interface LoadedModel {
-  scene: THREE.Group;
+/** ContainerResource.animations существует в рантайме, но не описан в типах движка. */
+type ContainerResourceWithAnimations = ContainerResource & { animations: Asset[] };
+
+export interface LoadedContainer {
+  /** Клипы модели по имени → секунды длительности, для калибровочных проверок в консоли. */
+  clipNames: string[];
+  instantiate(): Entity;
+  clip(name: string): Asset;
 }
 
-const loader = new GLTFLoader();
-const cache = new Map<string, Promise<LoadedModel>>();
-/** Уже загруженные модели — чтобы создание бойца оставалось синхронным. */
-const ready = new Map<string, LoadedModel>();
+const cache = new Map<string, Promise<LoadedContainer>>();
+/** Уже загруженные контейнеры — чтобы создание бойца оставалось синхронным. */
+const ready = new Map<string, LoadedContainer>();
 
-/** Грузит GLB один раз на URL; повторные вызовы переиспользуют ту же загрузку. */
-export function loadModel(url: string): Promise<LoadedModel> {
+/** Грузит GLB как container-ассет один раз на URL; повторные вызовы переиспользуют загрузку. */
+export function loadContainer(app: AppBase, url: string): Promise<LoadedContainer> {
   let pending = cache.get(url);
   if (!pending) {
-    pending = new Promise<LoadedModel>((resolve, reject) => {
-      loader.load(
-        url,
-        (gltf) => {
-          const loaded = { scene: gltf.scene as THREE.Group };
-          ready.set(url, loaded);
-          resolve(loaded);
-        },
-        undefined,
-        (error) => reject(error),
-      );
+    const asset = new Asset(url, 'container', { url });
+    pending = new Promise<LoadedContainer>((resolve, reject) => {
+      new AssetListLoader([asset], app.assets).load(() => {
+        if (!asset.resource) {
+          reject(new Error(`Не удалось загрузить контейнер: ${url}`));
+          return;
+        }
+        const resource = asset.resource as ContainerResourceWithAnimations;
+        const animations = resource.animations;
+        // Asset.name у клипов — синтетический путь ("model.glb/animation/0"), настоящее имя
+        // из glTF лежит в AnimTrack.resource.name (см. glb-parser.js: createAnimation()).
+        const clipName = (a: Asset): string => (a.resource as AnimTrack | null)?.name ?? a.name;
+        const loaded: LoadedContainer = {
+          clipNames: animations.map(clipName),
+          instantiate: () => resource.instantiateRenderEntity({ castShadows: true }) as Entity,
+          clip: (name: string) => {
+            const found = animations.find((a) => clipName(a) === name);
+            if (!found) {
+              throw new Error(`В ${url} нет клипа «${name}»; доступны: ${animations.map(clipName).join(', ')}`);
+            }
+            return found;
+          },
+        };
+        ready.set(url, loaded);
+        resolve(loaded);
+      });
     });
     cache.set(url, pending);
   }
   return pending;
 }
 
-/**
- * Копия модели с собственным скелетом. Обычный clone() переиспользовал бы кости,
- * и оба бойца двигались бы синхронно — SkeletonUtils.clone разводит скелеты.
- */
-export function instantiate(model: LoadedModel): THREE.Group {
-  return cloneSkinned(model.scene) as THREE.Group;
-}
-
-/** Модель, если она уже загружена. Нет — боец соберётся из примитивов. */
-export function getLoaded(url: string): LoadedModel | null {
+/** Контейнер, если он уже загружен. Нет — боец соберётся из примитивов. */
+export function getLoadedContainer(url: string): LoadedContainer | null {
   return ready.get(url) ?? null;
 }
 
@@ -49,13 +59,13 @@ export function getLoaded(url: string): LoadedModel | null {
  * Прогрев перед первым боем. Ошибку загрузки глотаем намеренно:
  * без модели боец просто соберётся из примитивов, играть это не мешает.
  */
-export function preload(urls: string[], onProgress?: (done: number, total: number) => void): Promise<void> {
+export function preload(app: AppBase, urls: string[], onProgress?: (done: number, total: number) => void): Promise<void> {
   let done = 0;
   const total = urls.length;
   onProgress?.(0, total);
   return Promise.all(
     urls.map((url) =>
-      loadModel(url)
+      loadContainer(app, url)
         .catch(() => null)
         .then(() => {
           done += 1;
