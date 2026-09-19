@@ -204,6 +204,8 @@ export interface AnimatedRig {
   yaw: number;
   /** Зациклённая стойка по умолчанию — не скрабится, играет по настенному времени. */
   idleClip: string;
+  /** Бег/шаг — зациклён, как idle, но проигрывается на walkF/walkB/dash. */
+  runClip: string;
   /** Удар рукой (lp/hp и их присед/воздух варианты). */
   punch: ClipWindow;
   /** Удар ногой (lk/hk и их присед/воздух варианты). */

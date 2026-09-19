@@ -23,7 +23,9 @@ const TUNING = {
   groundOffset: 0,
 };
 
-type AnimState = 'idle' | 'punch' | 'kick' | 'hitHigh';
+type AnimState = 'idle' | 'run' | 'punch' | 'kick' | 'hitHigh';
+/** Состояния, которые просто зациклены и играют по настенному времени, без скраба по кадрам приёма. */
+const LOOPED_STATES: ReadonlySet<AnimState> = new Set(['idle', 'run']);
 
 export class AnimatedFighter implements FighterVisual {
   readonly root = new Entity('terraks-root');
@@ -65,6 +67,7 @@ export class AnimatedFighter implements FighterVisual {
     const anim = this.visual.anim;
     if (!anim) throw new Error('Не удалось навесить anim-компонент на Терракса');
     anim.assignAnimation('idle', loaded.clip(rig.idleClip).resource as AnimTrack);
+    anim.assignAnimation('run', loaded.clip(rig.runClip).resource as AnimTrack);
     anim.assignAnimation('punch', loaded.clip(rig.punch.clip).resource as AnimTrack);
     anim.assignAnimation('kick', loaded.clip(rig.kick.clip).resource as AnimTrack);
     anim.assignAnimation('hitHigh', loaded.clip(rig.hitHigh.clip).resource as AnimTrack);
@@ -111,15 +114,17 @@ export class AnimatedFighter implements FighterVisual {
     } else if (fighter.state === 'hitstun') {
       next = 'hitHigh';
       progress = fighter.stateFrame / Math.max(1, fighter.stunFrames);
+    } else if (fighter.state === 'walkF' || fighter.state === 'walkB' || fighter.state === 'dash') {
+      next = 'run';
     }
 
     if (next !== this.state) {
       layer.transition(next, 0);
-      layer.playing = next === 'idle';
+      layer.playing = LOOPED_STATES.has(next);
       this.state = next;
     }
 
-    if (next === 'idle') return;
+    if (next === 'idle' || next === 'run') return;
 
     const w = this.windows[next];
     layer.activeStateCurrentTime = w.start + Math.min(1, Math.max(0, progress)) * (w.end - w.start);

@@ -233,8 +233,9 @@ const BLUEPRINTS: Blueprint[] = [
     silhouette: 'horns',
     animatedRig: {
       url: 'models/warrior2.glb',
-      yaw: 0,
+      yaw: 270,
       idleClip: 'Боевая стойка',
+      runClip: 'run',
       punch: { clip: 'box_02', start: 0, end: 0.65 },
       kick: { clip: 'front_kick_02', start: 0.35, end: 0.85 },
       hitHigh: { clip: 'hit_to_head', start: 0, end: 0.5 },
