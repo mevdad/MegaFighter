@@ -44,6 +44,7 @@ export class ProceduralFighter implements FighterVisual {
   /** Текущая сглаженная поза и разворот — без них смена состояния даёт рывок. */
   private current: Pose = {};
   private facingAngle = 0;
+  private facingInitialized = false;
 
   constructor(private readonly spec: CharacterSpec) {
     this.dims = dimensions(spec);
@@ -178,8 +179,15 @@ export class ProceduralFighter implements FighterVisual {
     // Скелет и позы (poses.ts) 1:1 те же числа, что и в Three-версии — обе системы координат
     // правые и +Y вверх, так что доворот по Y в градусах ведёт себя идентично.
     const target = facing === 1 ? 0 : 180;
-    const diff = ((target - this.facingAngle + 540) % 360) - 180;
-    this.facingAngle += diff * 0.35;
+    if (!this.facingInitialized) {
+      // Тот же эффект «один кадр смотрит не в ту сторону», что и у AnimatedFighter —
+      // facingAngle стартовал с 0 независимо от реальной стороны бойца.
+      this.facingAngle = target;
+      this.facingInitialized = true;
+    } else {
+      const diff = ((target - this.facingAngle + 540) % 360) - 180;
+      this.facingAngle += diff * 0.35;
+    }
     this.body.setLocalEulerAngles(0, this.facingAngle, 0);
   }
 

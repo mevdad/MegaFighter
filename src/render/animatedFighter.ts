@@ -37,6 +37,7 @@ export class AnimatedFighter implements FighterVisual {
   private readonly windows: Record<'punch' | 'kick' | 'hitHigh', { start: number; end: number }>;
 
   private facingAngle = 0;
+  private facingInitialized = false;
   private state: AnimState = 'idle';
 
   constructor(spec: CharacterSpec, loaded: LoadedContainer, rig: AnimatedRig) {
@@ -83,8 +84,16 @@ export class AnimatedFighter implements FighterVisual {
   place(x: number, y: number, facing: 1 | -1): void {
     this.root.setPosition(x, y, 0);
     const target = facing === 1 ? 0 : 180;
-    const diff = ((target - this.facingAngle + 540) % 360) - 180;
-    this.facingAngle += diff * 0.35;
+    if (!this.facingInitialized) {
+      // Без этого боец на старте матча один кадр стоит развёрнутым по умолчанию (0°,
+      // «лицом вправо»), а не по своей реальной стороне — для игрока справа это читалось
+      // как «смотрит не туда» ещё до того, как сглаживание успевало довернуть его.
+      this.facingAngle = target;
+      this.facingInitialized = true;
+    } else {
+      const diff = ((target - this.facingAngle + 540) % 360) - 180;
+      this.facingAngle += diff * 0.35;
+    }
     this.facingNode.setLocalEulerAngles(0, this.facingAngle, 0);
   }
 
