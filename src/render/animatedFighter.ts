@@ -23,9 +23,9 @@ const TUNING = {
   groundOffset: 0,
 };
 
-type AnimState = 'idle' | 'run' | 'punch' | 'kick' | 'hitHigh';
+type AnimState = 'idle' | 'run' | 'runBack' | 'punch' | 'kick' | 'hitHigh';
 /** Состояния, которые просто зациклены и играют по настенному времени, без скраба по кадрам приёма. */
-const LOOPED_STATES: ReadonlySet<AnimState> = new Set(['idle', 'run']);
+const LOOPED_STATES: ReadonlySet<AnimState> = new Set(['idle', 'run', 'runBack']);
 
 export class AnimatedFighter implements FighterVisual {
   readonly root = new Entity('terraks-root');
@@ -52,9 +52,11 @@ export class AnimatedFighter implements FighterVisual {
     // «Боевая стойка» — единственный клип в этом GLB, чей корневой бон развёрнут на 180°
     // относительно остальных (run/box_02/front_kick_02/hit_to_head): подтверждено вживую —
     // с калибровочным yaw боец в стойке стоит спиной к противнику, а в беге/ударах — лицом.
-    // Правится доворотом yawNode на 180° конкретно во время idle (см. sync()).
+    // Правится доворотом yawNode на 180° конкретно во время idle (см. sync()). this.state
+    // по умолчанию уже 'idle', поэтому первый sync() не увидит «смену» состояния и не
+    // применит поправку — стартуем сразу с идл-ориентацией, а не с базовой.
     this.baseYaw = rig.yaw;
-    this.yawNode.setLocalEulerAngles(0, this.baseYaw, 0);
+    this.yawNode.setLocalEulerAngles(0, this.baseYaw + 180, 0);
     this.yawNode.addChild(this.visual);
     this.facingNode.addChild(this.yawNode);
     this.root.addChild(this.facingNode);
@@ -74,7 +76,12 @@ export class AnimatedFighter implements FighterVisual {
     const anim = this.visual.anim;
     if (!anim) throw new Error('Не удалось навесить anim-компонент на Терракса');
     anim.assignAnimation('idle', loaded.clip(rig.idleClip).resource as AnimTrack);
-    anim.assignAnimation('run', loaded.clip(rig.runClip).resource as AnimTrack);
+    const runTrack = loaded.clip(rig.runClip).resource as AnimTrack;
+    anim.assignAnimation('run', runTrack);
+    // Клипа для шага назад в файле нет — тот же run проигрывается в обратном
+    // направлении (отрицательный speed), иначе при отступлении ноги переступают
+    // вперёд, а боец при этом едет назад — читается как «бежит задом».
+    anim.assignAnimation('runBack', runTrack, undefined, -1, true);
     anim.assignAnimation('punch', loaded.clip(rig.punch.clip).resource as AnimTrack);
     anim.assignAnimation('kick', loaded.clip(rig.kick.clip).resource as AnimTrack);
     anim.assignAnimation('hitHigh', loaded.clip(rig.hitHigh.clip).resource as AnimTrack);
@@ -130,7 +137,8 @@ export class AnimatedFighter implements FighterVisual {
       next = 'hitHigh';
       progress = fighter.stateFrame / Math.max(1, fighter.stunFrames);
     } else if (fighter.state === 'walkF' || fighter.state === 'walkB' || fighter.state === 'dash') {
-      next = 'run';
+      // vx против facing — боец реально едет назад (отступление/бэкдэш), а не вперёд.
+      next = fighter.vx * fighter.facing < 0 ? 'runBack' : 'run';
     }
 
     if (next !== this.state) {
@@ -141,7 +149,7 @@ export class AnimatedFighter implements FighterVisual {
       this.yawNode.setLocalEulerAngles(0, yaw, 0);
     }
 
-    if (next === 'idle' || next === 'run') return;
+    if (next === 'idle' || next === 'run' || next === 'runBack') return;
 
     const w = this.windows[next];
     layer.activeStateCurrentTime = w.start + Math.min(1, Math.max(0, progress)) * (w.end - w.start);
