@@ -12,7 +12,8 @@
     "sim": "esbuild src/dev/simulate.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/sim.mjs --log-level=warning && node node_modules/.cache/sim.mjs",
     "smoke": "node scripts/smoke.mjs",
     "check:finisher": "esbuild src/dev/finisher.check.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/finisher.mjs --log-level=warning && node node_modules/.cache/finisher.mjs",
-    "check:mocap": "esbuild src/dev/checkKickLerp.ts --bundle --format=esm --platform=node --external:node:fs --outfile=node_modules/.cache/checklerp.mjs --log-level=warning && node node_modules/.cache/checklerp.mjs"
+    "check:mocap": "esbuild src/dev/checkKickLerp.ts --bundle --format=esm --platform=node --external:node:fs --outfile=node_modules/.cache/checklerp.mjs --log-level=warning && node node_modules/.cache/checklerp.mjs",
+    "bake:terraks": "blender --background --python scripts/build-terraks-rig.py"
   },
   "dependencies": {
     "playcanvas": "^2.22.2"

@@ -184,6 +184,28 @@ npm run bake:mocap -- public/models/warrior.glb   # перезаписывает
 npm run check:mocap                                # проверяет, что интерполяция клипа гладкая
 ```
 
+### Пересборка `public/models/warrior3.glb` (риг Терракса)
+
+Это единственный шаг сборки, для которого недостаточно `npm install` — нужен ещё
+Blender как системная зависимость (npm не умеет ставить такое, поэтому это не
+devDependency в `package.json`, а требование окружения):
+
+- **Blender 4.x** (`apt install blender` на Ubuntu/Debian, или blender.org для
+  остальных систем) — headless-сборка через `bpy`.
+- **numpy, видимый интерпретатору Python внутри Blender** — FBX-импортёр Blender
+  падает без него (`ModuleNotFoundError: No module named 'numpy'`). На Linux
+  Blender из apt использует системный `python3`, поэтому достаточно
+  `apt install python3-numpy`. На официальной сборке с blender.org (macOS/Windows/
+  портативный Linux-тарбол) Blender несёт свой собственный Python — тогда ставить
+  так: `<путь-к-blender>/4.x/python/bin/python3.x -m pip install numpy`.
+
+```bash
+npm run bake:terraks   # прогоняет scripts/build-terraks-rig.py, перезаписывает warrior3.glb
+```
+
+Как добавить ещё одну боевую анимацию Терраксу — см.
+`assets/rig-source/terraks/README.md`.
+
 ## Как устроен бой
 
 - **Фиксированный шаг 60 Гц.** Логика идёт ровно 60 раз в секунду независимо от частоты экрана,

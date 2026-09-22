@@ -27,6 +27,7 @@ MASTER_CLIP_NAME = "punch_body"
 
 EXTRA_CLIPS = [
     ("Martelo_2.fbx", "kick_high"),
+    ("Cross_Punch.fbx", "punch_heavy"),
 ]
 
 TEXTURE_FILE = "diffuse.png"

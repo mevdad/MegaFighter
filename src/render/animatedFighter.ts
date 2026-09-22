@@ -23,7 +23,7 @@ const TUNING = {
   groundOffset: 0,
 };
 
-type AnimState = 'idle' | 'run' | 'runBack' | 'punch' | 'kick' | 'hitHigh';
+type AnimState = 'idle' | 'run' | 'runBack' | 'punch' | 'punchHeavy' | 'kick' | 'hitHigh';
 /** Состояния, которые просто зациклены и играют по настенному времени, без скраба по кадрам приёма. */
 const LOOPED_STATES: ReadonlySet<AnimState> = new Set(['idle', 'run', 'runBack']);
 
@@ -34,7 +34,7 @@ export class AnimatedFighter implements FighterVisual {
   private readonly visual: Entity;
   private readonly auraLight: Entity;
   private readonly materials: StandardMaterial[] = [];
-  private readonly windows: Record<'punch' | 'kick' | 'hitHigh', { start: number; end: number }>;
+  private readonly windows: Record<'punch' | 'punchHeavy' | 'kick' | 'hitHigh', { start: number; end: number }>;
 
   private facingAngle = 0;
   private facingInitialized = false;
@@ -84,10 +84,11 @@ export class AnimatedFighter implements FighterVisual {
     // вперёд, а боец при этом едет назад — читается как «бежит задом».
     anim.assignAnimation('runBack', runTrack, undefined, -1, true);
     anim.assignAnimation('punch', loaded.clip(rig.punch.clip).resource as AnimTrack);
+    anim.assignAnimation('punchHeavy', loaded.clip(rig.punchHeavy.clip).resource as AnimTrack);
     anim.assignAnimation('kick', loaded.clip(rig.kick.clip).resource as AnimTrack);
     anim.assignAnimation('hitHigh', loaded.clip(rig.hitHigh.clip).resource as AnimTrack);
 
-    this.windows = { punch: rig.punch, kick: rig.kick, hitHigh: rig.hitHigh };
+    this.windows = { punch: rig.punch, punchHeavy: rig.punchHeavy, kick: rig.kick, hitHigh: rig.hitHigh };
 
     this.auraLight = new Entity('terraks-aura');
     this.auraLight.addComponent('light', { type: 'omni', color: hexColor(spec.palette.aura), intensity: 0, range: 3.4 });
@@ -127,8 +128,11 @@ export class AnimatedFighter implements FighterVisual {
     let progress = 0;
     if (fighter.state === 'attack' && fighter.move && fighter.grounded) {
       const id = fighter.move.id;
-      if (id.endsWith('lp') || id.endsWith('hp')) {
+      if (id.endsWith('lp')) {
         next = 'punch';
+        progress = fighter.moveFrame / Math.max(1, fighter.moveTotal);
+      } else if (id.endsWith('hp')) {
+        next = 'punchHeavy';
         progress = fighter.moveFrame / Math.max(1, fighter.moveTotal);
       } else if (id.endsWith('lk') || id.endsWith('hk')) {
         next = 'kick';
@@ -146,9 +150,9 @@ export class AnimatedFighter implements FighterVisual {
       layer.transition(next, 0);
       layer.playing = LOOPED_STATES.has(next);
       this.state = next;
-      // По просьбе: удар рукой должен идти левой, а punch_body бьёт правой — зеркалим
-      // по X конкретно на punch (кик не трогаем, его не просили менять).
-      const mirror = next === 'punch' ? -1 : 1;
+      // По просьбе: удар рукой должен идти левой, а punch_body/punch_heavy бьют правой —
+      // зеркалим по X на оба варианта удара рукой (кик не трогаем, его не просили менять).
+      const mirror = next === 'punch' || next === 'punchHeavy' ? -1 : 1;
       this.visual.setLocalScale(mirror * this.visualScale, this.visualScale, this.visualScale);
     }
 
