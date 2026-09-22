@@ -26,10 +26,6 @@ const TUNING = {
 type AnimState = 'idle' | 'run' | 'runBack' | 'punch' | 'kick' | 'hitHigh';
 /** Состояния, которые просто зациклены и играют по настенному времени, без скраба по кадрам приёма. */
 const LOOPED_STATES: ReadonlySet<AnimState> = new Set(['idle', 'run', 'runBack']);
-/** punch_body/kick_high — реальный мокап, зеркальный относительно ожидаемой стороны удара
- * (подтверждено вживую игроком: лицом к противнику, но бьёт как будто развёрнут).
- * Доворотом (yaw) это не лечится — зеркалим по X конкретно эти состояния. */
-const MIRRORED_STATES: ReadonlySet<AnimState> = new Set(['punch', 'kick']);
 
 export class AnimatedFighter implements FighterVisual {
   readonly root = new Entity('terraks-root');
@@ -43,40 +39,23 @@ export class AnimatedFighter implements FighterVisual {
   private facingAngle = 0;
   private facingInitialized = false;
   private state: AnimState = 'idle';
-  private readonly baseYaw: number;
-  private readonly flippedStates: ReadonlySet<AnimState>;
-  private readonly visualScale: number;
 
   constructor(spec: CharacterSpec, loaded: LoadedContainer, rig: AnimatedRig) {
     const targetHeight = dimensions(spec).height;
     const scale = targetHeight / TUNING.measuredHeight;
-    this.visualScale = scale;
 
     this.visual = loaded.instantiate();
     this.visual.setLocalScale(scale, scale, scale);
     this.visual.setLocalPosition(-TUNING.center[0] * scale, TUNING.groundOffset * scale, -TUNING.center[2] * scale);
 
-    // rig.idleClip (idle_hold) — не мокап, а bind-поза арматуры (см.
-    // scripts/build-terraks-rig.py), и её «перёд» не обязан совпадать с ориентацией
-    // реальных mocap-клипов (punch_body/kick_high) — подтверждено вживую: со старым
-    // yaw idle стоял спиной к противнику, атаки — лицом. Правим доворотом на 180°
-    // любое состояние, чей клип совпадает с idleClip (сейчас это run/runBack тоже,
-    // они временно используют тот же плейсхолдер) — а не только сам 'idle', иначе
-    // бег унаследует тот же баг.
-    const stateClip: Record<AnimState, string> = {
-      idle: rig.idleClip,
-      run: rig.runClip,
-      runBack: rig.runClip,
-      punch: rig.punch.clip,
-      kick: rig.kick.clip,
-      hitHigh: rig.hitHigh.clip,
-    };
-    this.flippedStates = new Set(
-      (Object.keys(stateClip) as AnimState[]).filter((s) => stateClip[s] === rig.idleClip),
-    );
-
-    this.baseYaw = rig.yaw;
-    this.yawNode.setLocalEulerAngles(0, this.baseYaw + (this.flippedStates.has('idle') ? 180 : 0), 0);
+    // Весь риг (idle_hold, punch_body, kick_high — что bind-поза, что мокап) развёрнут
+    // на одни и те же 180° относительно rig.yaw — подтверждено вживую игроком: простой
+    // смотрит на противника правильно, а удар в момент старта разворачивался на 180°
+    // и бил в противоположную сторону. Ранняя версия применяла доворот только к idle
+    // (казалось, что удары и так смотрят верно) — это было ошибкой чтения скриншотов
+    // (см. историю проекта: тот же косяк уже был с «Боевой стойкой» на старом риге).
+    // Один и тот же угол для всех состояний — сам yawNode больше никогда не меняется.
+    this.yawNode.setLocalEulerAngles(0, rig.yaw + 180, 0);
     this.yawNode.addChild(this.visual);
     this.facingNode.addChild(this.yawNode);
     this.root.addChild(this.facingNode);
@@ -165,10 +144,6 @@ export class AnimatedFighter implements FighterVisual {
       layer.transition(next, 0);
       layer.playing = LOOPED_STATES.has(next);
       this.state = next;
-      const yaw = this.baseYaw + (this.flippedStates.has(next) ? 180 : 0);
-      this.yawNode.setLocalEulerAngles(0, yaw, 0);
-      const mirror = MIRRORED_STATES.has(next) ? -1 : 1;
-      this.visual.setLocalScale(mirror * this.visualScale, this.visualScale, this.visualScale);
     }
 
     if (next === 'idle' || next === 'run' || next === 'runBack') return;
