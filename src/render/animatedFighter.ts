@@ -40,6 +40,7 @@ export class AnimatedFighter implements FighterVisual {
   private facingInitialized = false;
   private state: AnimState = 'idle';
   private readonly baseYaw: number;
+  private readonly flippedStates: ReadonlySet<AnimState>;
 
   constructor(spec: CharacterSpec, loaded: LoadedContainer, rig: AnimatedRig) {
     const targetHeight = dimensions(spec).height;
@@ -49,12 +50,27 @@ export class AnimatedFighter implements FighterVisual {
     this.visual.setLocalScale(scale, scale, scale);
     this.visual.setLocalPosition(-TUNING.center[0] * scale, TUNING.groundOffset * scale, -TUNING.center[2] * scale);
 
-    // warrior3.glb — все клипы (idle_hold/punch_body/kick_high) сделаны из одной и той же
-    // мастер-арматуры в Blender (см. scripts/build-terraks-rig.py), в отличие от старого
-    // warrior2.glb корневой бон везде развёрнут одинаково — доворот на 180° конкретно
-    // для idle (как было раньше под старый риг) больше не нужен.
+    // rig.idleClip (idle_hold) — не мокап, а bind-поза арматуры (см.
+    // scripts/build-terraks-rig.py), и её «перёд» не обязан совпадать с ориентацией
+    // реальных mocap-клипов (punch_body/kick_high) — подтверждено вживую: со старым
+    // yaw idle стоял спиной к противнику, атаки — лицом. Правим доворотом на 180°
+    // любое состояние, чей клип совпадает с idleClip (сейчас это run/runBack тоже,
+    // они временно используют тот же плейсхолдер) — а не только сам 'idle', иначе
+    // бег унаследует тот же баг.
+    const stateClip: Record<AnimState, string> = {
+      idle: rig.idleClip,
+      run: rig.runClip,
+      runBack: rig.runClip,
+      punch: rig.punch.clip,
+      kick: rig.kick.clip,
+      hitHigh: rig.hitHigh.clip,
+    };
+    this.flippedStates = new Set(
+      (Object.keys(stateClip) as AnimState[]).filter((s) => stateClip[s] === rig.idleClip),
+    );
+
     this.baseYaw = rig.yaw;
-    this.yawNode.setLocalEulerAngles(0, this.baseYaw, 0);
+    this.yawNode.setLocalEulerAngles(0, this.baseYaw + (this.flippedStates.has('idle') ? 180 : 0), 0);
     this.yawNode.addChild(this.visual);
     this.facingNode.addChild(this.yawNode);
     this.root.addChild(this.facingNode);
@@ -143,7 +159,7 @@ export class AnimatedFighter implements FighterVisual {
       layer.transition(next, 0);
       layer.playing = LOOPED_STATES.has(next);
       this.state = next;
-      const yaw = next === 'idle' ? this.baseYaw + 180 : this.baseYaw;
+      const yaw = this.baseYaw + (this.flippedStates.has(next) ? 180 : 0);
       this.yawNode.setLocalEulerAngles(0, yaw, 0);
     }
 
