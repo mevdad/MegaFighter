@@ -237,7 +237,11 @@ const BLUEPRINTS: Blueprint[] = [
       idleClip: 'idle_hold',
       runClip: 'idle_hold',
       punch: { clip: 'punch_body', start: 0, end: 0.9 },
-      kick: { clip: 'kick_high', start: 0, end: 1.3333 },
+      // Полный клип — 1.3333с, а реальный удар (lk/hk) идёт всего 0.35–0.7с игрового
+      // времени: растягивать на него весь клип выглядело неестественно быстрым/дёрганым.
+      // Урезано до первых ~68%, где укладывается основной мах ногой (см. README в
+      // assets/rig-source/terraks — там же как поправить точнее, если ещё быстро).
+      kick: { clip: 'kick_high', start: 0, end: 0.9 },
       hitHigh: { clip: 'idle_hold', start: 0, end: 0.3333 },
     },
   },
