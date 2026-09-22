@@ -49,14 +49,12 @@ export class AnimatedFighter implements FighterVisual {
     this.visual.setLocalScale(scale, scale, scale);
     this.visual.setLocalPosition(-TUNING.center[0] * scale, TUNING.groundOffset * scale, -TUNING.center[2] * scale);
 
-    // «Боевая стойка» — единственный клип в этом GLB, чей корневой бон развёрнут на 180°
-    // относительно остальных (run/box_02/front_kick_02/hit_to_head): подтверждено вживую —
-    // с калибровочным yaw боец в стойке стоит спиной к противнику, а в беге/ударах — лицом.
-    // Правится доворотом yawNode на 180° конкретно во время idle (см. sync()). this.state
-    // по умолчанию уже 'idle', поэтому первый sync() не увидит «смену» состояния и не
-    // применит поправку — стартуем сразу с идл-ориентацией, а не с базовой.
+    // warrior3.glb — все клипы (idle_hold/punch_body/kick_high) сделаны из одной и той же
+    // мастер-арматуры в Blender (см. scripts/build-terraks-rig.py), в отличие от старого
+    // warrior2.glb корневой бон везде развёрнут одинаково — доворот на 180° конкретно
+    // для idle (как было раньше под старый риг) больше не нужен.
     this.baseYaw = rig.yaw;
-    this.yawNode.setLocalEulerAngles(0, this.baseYaw + 180, 0);
+    this.yawNode.setLocalEulerAngles(0, this.baseYaw, 0);
     this.yawNode.addChild(this.visual);
     this.facingNode.addChild(this.yawNode);
     this.root.addChild(this.facingNode);
