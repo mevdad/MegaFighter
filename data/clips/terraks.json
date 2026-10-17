@@ -1,0 +1,8 @@
+{
+  "clips": [
+    { "name": "idle_hold", "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "name": "punch_body", "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "name": "kick_high", "rootLock": { "axes": ["z"], "factor": 1 } },
+    { "name": "punch_heavy", "rootLock": { "axes": ["z"], "factor": 0 } }
+  ]
+}
