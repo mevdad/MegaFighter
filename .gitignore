@@ -3,3 +3,5 @@ dist
 .DS_Store
 *.local
 .smoke
+scripts/clips-audit/out/
+__pycache__/
