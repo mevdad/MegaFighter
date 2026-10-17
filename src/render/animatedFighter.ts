@@ -41,12 +41,10 @@ export class AnimatedFighter implements FighterVisual {
   private facingAngle = 0;
   private facingInitialized = false;
   private state: AnimState = 'idle';
-  private readonly visualScale: number;
 
   constructor(spec: CharacterSpec, loaded: LoadedContainer, rig: AnimatedRig) {
     const targetHeight = dimensions(spec).height;
     const scale = targetHeight / TUNING.measuredHeight;
-    this.visualScale = scale;
 
     this.visual = loaded.instantiate();
     this.visual.setLocalScale(scale, scale, scale);
@@ -161,10 +159,8 @@ export class AnimatedFighter implements FighterVisual {
       layer.transition(next, 0);
       layer.playing = LOOPED_STATES.has(next);
       this.state = next;
-      // По просьбе: удар рукой должен идти левой, а punch_body/punch_heavy бьют правой —
-      // зеркалим по X на оба варианта удара рукой (кик не трогаем, его не просили менять).
-      const mirror = next === 'punch' || next === 'punchHeavy' ? -1 : 1;
-      this.visual.setLocalScale(mirror * this.visualScale, this.visualScale, this.visualScale);
+      // Зеркала по X (отрицательный scale, инвариант 9) больше нет: клипы пилота (Jab левой, Cross_Punch правой,
+      // стойка Fighting_Idle с лидирующей левой, DECISIONS §2) проигрываются как записаны. Масштаб задан один раз в конструкторе.
     }
 
     if (next === 'idle' || next === 'run' || next === 'runBack') return;
