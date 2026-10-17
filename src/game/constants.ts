@@ -25,6 +25,9 @@ export const PUSH_RADIUS = 0.62;
 /** Матч. */
 export const ROUND_TIME = 99;
 export const ROUNDS_TO_WIN = 2;
+/** Базовый сид ИИ: у второго бойца сид сдвинут на AI_SEED_STRIDE, чтобы потоки решений не совпадали. */
+export const AI_SEED = 20240601;
+export const AI_SEED_STRIDE = 991;
 
 /** Ресурсы. */
 export const MAX_METER = 100;

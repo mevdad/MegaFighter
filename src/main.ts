@@ -5,6 +5,7 @@ import { CompositeSource, GamepadSource, KeyboardSource, type InputSource } from
 import { audio } from './core/audio';
 import { Match } from './game/match';
 import { AiController, type Difficulty } from './game/ai';
+import { AI_SEED, AI_SEED_STRIDE } from './game/constants';
 import { ROSTER } from './characters/roster';
 import { generateCharacter } from './characters/generator';
 import { SceneView } from './render/scene';
@@ -47,7 +48,10 @@ class App {
     layer.append(this.touch.root);
 
     this.playerInput = new CompositeSource([new KeyboardSource(), new GamepadSource(0), this.touch]);
-    this.ai = [new AiController('normal'), new AiController('normal')];
+    this.ai = [
+      new AiController('normal', AI_SEED),
+      new AiController('normal', AI_SEED + AI_SEED_STRIDE),
+    ];
 
     this.match = this.makeDemoMatch();
     this.battleView.setMatch(this.match);

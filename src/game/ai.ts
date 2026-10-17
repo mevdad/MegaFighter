@@ -45,7 +45,7 @@ export class AiController {
     blocking: boolean;
   }> = [];
 
-  constructor(difficulty: Difficulty = 'normal', seed: number = Date.now()) {
+  constructor(difficulty: Difficulty, seed: number) {
     this.profile = PROFILES[difficulty];
     this.rng = new Rng(seed);
   }
