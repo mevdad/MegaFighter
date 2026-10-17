@@ -10,6 +10,7 @@ import { ROSTER } from './characters/roster';
 import { generateCharacter } from './characters/generator';
 import { SceneView } from './render/scene';
 import { BattleView } from './render/view';
+import { DebugOverlay } from './render/debug/debugOverlay';
 import { preload } from './render/assets';
 import { Hud } from './ui/hud';
 import { TouchControls, isTouchDevice } from './ui/touch';
@@ -24,6 +25,7 @@ class App {
   private readonly battleView: BattleView;
   private readonly hud: Hud;
   private readonly touch: TouchControls;
+  private readonly debug: DebugOverlay;
   private readonly playerInput: InputSource;
 
   private readonly title: TitleScreen;
@@ -117,6 +119,9 @@ class App {
     this.pauseButton.style.display = 'none';
     this.pauseButton.addEventListener('pointerup', () => this.togglePause());
     layer.append(this.pauseButton);
+
+    // Оверлей отладки (F1): по умолчанию выключен; только читает состояние матча.
+    this.debug = new DebugOverlay(layer, this.sceneView.app, this.battleView);
 
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape') this.togglePause();
@@ -232,6 +237,8 @@ class App {
 
   private step(): void {
     audio.tickMusic();
+    // Пауза/шаг оверлея отладки: пропуск тика целиком, симуляция не меняется (true, когда оверлей закрыт).
+    if (!this.debug.shouldTick()) return;
     if (this.mode === 'pause') return;
 
     const [f0, f1] = this.match.fighters;
@@ -276,6 +283,7 @@ class App {
 
   private draw(): void {
     this.battleView.update(this.match);
+    this.debug.draw(this.match);
     this.sceneView.render();
   }
 }

@@ -36,6 +36,8 @@ export class AnimatedFighter implements FighterVisual {
   private readonly materials: StandardMaterial[] = [];
   private readonly windows: Record<'punch' | 'punchHeavy' | 'kick' | 'hitHigh', { start: number; end: number }>;
 
+  private readonly clipByState: Record<AnimState, string>;
+
   private facingAngle = 0;
   private facingInitialized = false;
   private state: AnimState = 'idle';
@@ -89,6 +91,15 @@ export class AnimatedFighter implements FighterVisual {
     anim.assignAnimation('hitHigh', loaded.clip(rig.hitHigh.clip).resource as AnimTrack);
 
     this.windows = { punch: rig.punch, punchHeavy: rig.punchHeavy, kick: rig.kick, hitHigh: rig.hitHigh };
+    this.clipByState = {
+      idle: rig.idleClip,
+      run: rig.runClip,
+      runBack: rig.runClip,
+      punch: rig.punch.clip,
+      punchHeavy: rig.punchHeavy.clip,
+      kick: rig.kick.clip,
+      hitHigh: rig.hitHigh.clip,
+    };
 
     this.auraLight = new Entity('terraks-aura');
     this.auraLight.addComponent('light', { type: 'omni', color: hexColor(spec.palette.aura), intensity: 0, range: 3.4 });
@@ -160,6 +171,22 @@ export class AnimatedFighter implements FighterVisual {
 
     const w = this.windows[next];
     layer.activeStateCurrentTime = w.start + Math.min(1, Math.max(0, progress)) * (w.end - w.start);
+  }
+
+  /**
+   * Только чтение, для оверлея отладки (src/render/debug): какой клип сейчас активен в anim-слое
+   * и его локальное время в секундах. null, пока anim-компонент не готов.
+   */
+  get debugClip(): { animState: string; clip: string; time: number; duration: number } | null {
+    const layer = this.visual.anim?.baseLayer;
+    if (!layer) return null;
+    const active = (layer.activeState ?? this.state) as AnimState;
+    return {
+      animState: active,
+      clip: this.clipByState[active] ?? '?',
+      time: layer.activeStateCurrentTime,
+      duration: layer.activeStateDuration,
+    };
   }
 
   setEffects(flash: number, aura: number): void {

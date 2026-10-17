@@ -35,6 +35,11 @@ export class BattleView {
     view.root.addChild(this.effects.root);
   }
 
+  /** Только чтение, для оверлея отладки (src/render/debug). */
+  get fighterVisuals(): readonly [FighterVisual, FighterVisual] | null {
+    return this.models;
+  }
+
   setMatch(match: Match): void {
     if (this.models) {
       for (const m of this.models) m.dispose();
