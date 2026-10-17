@@ -83,7 +83,7 @@ describe('computeClip', () => {
 });
 
 /** Минимальный GLB: узлы Armature(+90° X) -> Hips, две анимации с общим translation-accessor'ом. */
-function tinyGlb(file, { share }) {
+function tinyGlb(file, { share, ramp = false }) {
   const json = {
     asset: { version: '2.0' },
     scene: 0,
@@ -101,7 +101,8 @@ function tinyGlb(file, { share }) {
   const add = (vals, type) => { const r = appendFloatAccessor(json, bin, vals, type, true); bin = r.bin; return r.index; };
   const time = add([0, 1 / 30, 2 / 30], 'SCALAR');
   // локальный Y = мировой Z: ход вперёд по Z
-  const trans = add([[0, 0.03, -0.56], [0, 0.13, -0.56], [0, 0.23, -0.56]], 'VEC3');
+  // ramp: ход ещё и по локальным X и Z (мировые X и Y = -локальный Z)
+  const trans = add(ramp ? [[0, 0.03, -0.56], [0.1, 0.13, -0.46], [0.2, 0.23, -0.36]] : [[0, 0.03, -0.56], [0, 0.13, -0.56], [0, 0.23, -0.56]], 'VEC3');
   const mk = (name, out) => ({ name, samplers: [{ input: time, interpolation: 'LINEAR', output: out }], channels: [{ sampler: 0, target: { node: 0, path: 'translation' } }] });
   json.animations.push(mk('a', trans));
   json.animations.push(mk('b', share ? trans : add([[0, 0.03, -0.56], [0, 0.13, -0.56], [0, 0.23, -0.56]], 'VEC3')));
@@ -147,6 +148,24 @@ describe('apply-root-lock: общий accessor', () => {
     fs.rmSync(dir, { recursive: true });
   });
 
+  it('оси X и Y (мировые) через родителя Hips: x = локальный X, y = -локальный Z; остальные оси не трогаются', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arl-test-'));
+    const glb = path.join(dir, 'in.glb'), out = path.join(dir, 'out.glb');
+    tinyGlb(glb, { share: false, ramp: true });
+    const loc = (file) => { const { json, bin } = readGlb(file); return readFloatAccessor(json, bin, json.animations[0].samplers[0].output); };
+    const log = run({ clips: [{ id: 'a', rootLock: { axes: ['y'], factor: 1 } }] }, glb, out);
+    expect(log).toMatch(/y->local\[z\] \(знак -\)/);
+    const o = loc(out);
+    o.forEach((v) => expect(v[2]).toBeCloseTo(-0.56, 6)); // мировой Y заперт (якорь = первый ключ)
+    expect(o[2][0]).toBeCloseTo(0.2, 6); // X не тронут
+    expect(o[2][1]).toBeCloseTo(0.23, 6); // мировой Z (локальный Y) не тронут
+    run({ clips: [{ id: 'a', rootLock: { axes: ['x', 'z'], factor: 1 } }] }, glb, out);
+    const p = loc(out);
+    p.forEach((v) => { expect(v[0]).toBeCloseTo(0, 6); expect(v[1]).toBeCloseTo(0.03, 6); });
+    expect(p[2][2]).toBeCloseTo(-0.36, 6); // мировой Y не тронут
+    fs.rmSync(dir, { recursive: true });
+  });
+
   it('уникальный accessor правится на месте без копии', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arl-test-'));
     const glb = path.join(dir, 'in.glb'), out = path.join(dir, 'out.glb');
@@ -173,5 +192,50 @@ describe('compact', () => {
     expect(nb.length).toBe(json.buffers[0].byteLength);
     expect(readFloatAccessor(json, nb, json.animations[0].samplers[0].output)).toEqual(keep);
     fs.rmSync(dir, { recursive: true });
+  });
+});
+
+describe('собранный GLB и конфиг клипов (public/models/warrior3.glb, data/clips/terraks.json)', () => {
+  const ROOT = path.join(HERE, '..');
+  const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'clips', 'terraks.json'), 'utf8'));
+  const { json, bin } = readGlb(path.join(ROOT, cfg.outGlb));
+  const anim = (id) => json.animations.find((a) => a.name === id);
+
+  it('все клипы конфига есть в GLB, id уникальны, других клипов нет', () => {
+    const ids = cfg.clips.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(json.animations.map((a) => a.name)).toEqual(ids);
+  });
+
+  it('клипы из FBX: rotation у 41 кости и translation только у Hips, без scale', () => {
+    for (const c of cfg.clips.filter((x) => x.file)) {
+      const paths = anim(c.id).channels.map((ch) => ch.target.path);
+      expect(paths.filter((p) => p === 'rotation').length, c.id).toBe(41);
+      expect(paths.filter((p) => p === 'translation').length, c.id).toBe(1);
+      expect(paths.length, c.id).toBe(42);
+    }
+  });
+
+  it('hold-клипы (trim из одного кадра): два одинаковых ключа на t = 0 и 1/30 с, длительность не нулевая', () => {
+    const holds = cfg.clips.filter((c) => c.file && c.trim.start === c.trim.end);
+    expect(holds.map((c) => c.id)).toEqual(['block_hold_18', 'block_hold_43']);
+    for (const c of holds) {
+      const a = anim(c.id);
+      for (const s of a.samplers) {
+        const t = readFloatAccessor(json, bin, s.input);
+        expect(t, c.id).toEqual([0, Math.fround(1 / 30)]);
+        const v = readFloatAccessor(json, bin, s.output);
+        expect(v[0], c.id).toEqual(v[1]);
+      }
+    }
+  });
+
+  it('время ключей: trim включительный, шаг 1/30 с, клип начинается с t = 0', () => {
+    for (const c of cfg.clips.filter((x) => x.file && x.trim.end > x.trim.start)) {
+      const t = readFloatAccessor(json, bin, anim(c.id).samplers[0].input);
+      expect(t.length, c.id).toBe(c.trim.end - c.trim.start + 1);
+      expect(t[0], c.id).toBe(0);
+      expect(t[t.length - 1], c.id).toBe(Math.fround((c.trim.end - c.trim.start) / 30));
+    }
   });
 });

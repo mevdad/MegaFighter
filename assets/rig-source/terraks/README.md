@@ -26,7 +26,14 @@ terraks-base.glb + *.fbx + data/clips/terraks.json --(npm run build:clips)--> pu
 перевод Hips в систему узла) в шапке `scripts/build-clips.mjs`.
 
 Пилот (DECISIONS §3): `fighting_idle` (Fighting_Idle 0-101, loop), `jab` (Jab 11-26), `martelo_2` (Martelo_2 3-35, Z lock 1),
-`cross_punch` (Cross_Punch 24-45). Остальные клипы добавляются записью в конфиг.
+`cross_punch` (Cross_Punch 24-45). Остальные 17 клипов (ходьба, dash, присед, прыжок, реакции, knockdown, getup, блок-hold,
+victory, intro, mma_kick, punching_1) собраны тем же способом: полный список с trim, loop, rootLock и алиасами-заглушками в
+[docs/clips-table.md](../../../docs/clips-table.md), поза в движке в [docs/clips-sheet.png](../../../docs/clips-sheet.png). В GLB 23 клипа,
+`roster.ts` пока использует только пилотные. Новые клипы добавляются записью в конфиг.
+
+Особенности конфига: однокадровый клип (trim start == end, `block_hold_18/43`) пишется как два одинаковых ключа на t = 0 и 1/30 с
+(DECISIONS §12, `scripts/clips-audit/hold_check.mjs`); D (сдвиг Hips в систему меша) считается по каждому FBX, у `Punching_1.fbx`
+он 0; необязательные поля `note`, `estimate`, `markers` сборка не читает (справочные данные для roster-этапа).
 
 ## Файлы
 
@@ -37,7 +44,7 @@ terraks-base.glb + *.fbx + data/clips/terraks.json --(npm run build:clips)--> pu
 - Остальные `*.fbx` — только скелет + анимация, без меша (стандартный Mixamo-экспорт "Without Skin"). Эти файлы
   несут ненулевую позу по умолчанию (Lcl Rotation у 24 костей), поэтому через Blender их переносить нельзя
   (AUDIT_CLIPS §10.1); `build-clips.mjs` читает их напрямую. `Martelo_2.fbx`, `Cross_Punch.fbx` в базе (Blender) ещё
-  значатся как `kick_high`, `punch_heavy`.
+  значатся как `kick_high`, `punch_heavy`. `*_Mirror.fbx`, `Knocked_Out.fbx`, `Male_Crouch_Pose.fbx`, `Surprise_Uppercut.fbx` в GLB не собираются.
 - `diffuse.webp` / `diffuse.png` — diffuse/albedo текстура меша (исходный webp +
   конвертированный png, т.к. Blender 4.0 не читает webp напрямую; конвертация:
   `dwebp diffuse.webp -o diffuse.png`).

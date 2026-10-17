@@ -9,6 +9,23 @@
     { "id": "fighting_idle", "file": "Fighting_Idle.fbx", "trim": { "start": 0, "end": 101 }, "loop": true, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } },
     { "id": "jab", "file": "Jab.fbx", "trim": { "start": 11, "end": 26 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } },
     { "id": "martelo_2", "file": "Martelo_2.fbx", "trim": { "start": 3, "end": 35 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 1 } },
-    { "id": "cross_punch", "file": "Cross_Punch.fbx", "trim": { "start": 24, "end": 45 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } }
+    { "id": "cross_punch", "file": "Cross_Punch.fbx", "trim": { "start": 24, "end": 45 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "id": "walk_fwd", "file": "Walking.fbx", "trim": { "start": 0, "end": 29 }, "loop": true, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "id": "walk_back", "file": "Walking_Backwards.fbx", "trim": { "start": 0, "end": 25 }, "loop": true, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "id": "dash", "file": "Fast_Run.fbx", "trim": { "start": 5, "end": 11 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "id": "crouch_in", "file": "Standing_To_Crouched.fbx", "trim": { "start": 2, "end": 19 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "id": "jump_up", "file": "Jumping.fbx", "trim": { "start": 8, "end": 16 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "id": "jump_air", "file": "Jumping.fbx", "trim": { "start": 17, "end": 32 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["y"], "factor": 1 }, "note": "rootLock Y с якорем на первом кадре клипа (FBX 17): высоту ведёт симуляция" },
+    { "id": "jump_land", "file": "Jumping.fbx", "trim": { "start": 33, "end": 40 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "id": "hit_head", "file": "Head_Hit.fbx", "trim": { "start": 0, "end": 24 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "id": "hit_body", "file": "Hit_To_Body.fbx", "trim": { "start": 0, "end": 28 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 }, "estimate": true, "note": "окно 0-28 это оценка (DECISIONS §7), уточнить оверлеем; не placeholder" },
+    { "id": "knockdown", "file": "knockdown.fbx", "trim": { "start": 0, "end": 93 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["x", "z"], "factor": 1 }, "note": "весь клип; кадр 93 = hold-кадр лёжа; растяжка 0-77 и hold это правило roster-этапа" },
+    { "id": "getup", "file": "Getting_Up.fbx", "trim": { "start": 0, "end": 54 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "id": "block_hold_18", "file": "Center_Block.fbx", "trim": { "start": 18, "end": 18 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 }, "note": "hold-поза: корпус назад 38 градусов; один кадр = два одинаковых ключа (t 0 и 1/30 с), см. DECISIONS §12" },
+    { "id": "block_hold_43", "file": "Center_Block.fbx", "trim": { "start": 43, "end": 43 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 }, "note": "hold-поза: корпус прямой; один кадр = два одинаковых ключа (t 0 и 1/30 с), см. DECISIONS §12" },
+    { "id": "victory", "file": "Victory.fbx", "trim": { "start": 5, "end": 75 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 }, "note": "hold около FBX 65 (локальный 60)" },
+    { "id": "intro", "file": "Intro.fbx", "trim": { "start": 10, "end": 95 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["x", "z"], "factor": 1 }, "note": "ось Y не трогаем" },
+    { "id": "mma_kick", "file": "Mma_Kick.fbx", "trim": { "start": 9, "end": 35 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0.5 }, "markers": { "active": [17, 20], "peak": 18, "unit": "кадры FBX (DECISIONS §3); локальный кадр = FBX - 9" } },
+    { "id": "punching_1", "file": "Punching_1.fbx", "trim": { "start": 5, "end": 22 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 }, "note": "мастер-файл с мешем: Hips rest = меш, D = 0 (считается по файлу)" }
   ]
 }

@@ -26,6 +26,14 @@
  * совпадает с первым (< 1 мм и < 0,2°). Не-loop клипы дубль не отбрасывают.
  * Интерполяция LINEAR, 30 к/с, ключи на каждом кадре (без редукции).
  *
+ * ---------------------------------------------------------------- hold-клипы (однокадровые, trim start == end)
+ * У одного ключа длительность 0 (AnimTrack.duration = время последнего ключа). Проверено в реальном движке PlayCanvas 2.22
+ * (scripts/clips-audit/hold_check.mjs, harness/clip.ts, anim-компонент, loop false/true, scrub и 600 тиков игры): ОДИН ключ грузится и
+ * позу держит (ошибка 0,001 мм), НО duration = 0, поэтому activeStateProgress = NaN (loop false) или Infinity (loop true), а любое окно
+ * `end = длительность - EPS` уходит в минус; переходы по exitTime и деление на длительность ломаются. Поэтому hold-клип пишется как ДВА одинаковых
+ * ключа на t = 0 и t = 1/30 с: duration 1/30 с, progress конечный (0..1, при loop растёт), поза во все моменты равна кадру trim.
+ * Каналы те же (rotation у 41 кости, translation Hips), только ключей 2; кадр в таблицах клипов считается как 1.
+ *
  * ---------------------------------------------------------------- вращения
  * «Without Skin» FBX несут ненулевую позу по умолчанию (Lcl Rotation у 24 костей; AUDIT_CLIPS §10.1),
  * а Blender трактовал кривые относительно неё (поза GLB = PreRotation·(R_default⁻¹·R_кривой)).
@@ -54,7 +62,8 @@
  * не меняются) и переносит клип в систему меша: в позе покоя Hips совпадает с Hips меша, ступни стоят на
  * той же высоте относительно земли, которую откалибровал TUNING (groundOffset 0). Альтернатива
  * «как в FBX без сдвига» оставила бы таз на 4,4 мм выше и на 30,5 мм позади меша (меш центрирован по Z,
- * Hips меша на z = +0,030). D считается по каждому клипу из его FBX (для четырёх пилотных файлов одинакова).
+ * Hips меша на z = +0,030). D считается по каждому клипу из его FBX (не константа): у всех «Without Skin» файлов
+ * D = (0; -0,00441; +0,03048), у Punching_1.fbx (мастер с мешем, Hips rest = меш) D = 0; нулевой Lcl Rotation у него формулу не ломает.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -215,7 +224,10 @@ export function buildClips(opt = {}) {
       loopNote = `, шаг last->first ${d.maxDeg.toFixed(2)}° / ${d.hmm.toFixed(1)} мм`;
     }
     const n = clip.frames.length;
-    const times = clip.frames.map((f) => f32((f - c.trim.start) / fps));
+    // Однокадровый клип (trim start == end, hold-поза): два одинаковых ключа на t = 0 и t = 1/30 с (см. шапку, «hold-клипы»).
+    const keyFrames = n === 1 ? [clip.frames[0], clip.frames[0] + 1] : clip.frames;
+    const dup = (arr) => (n === 1 ? [arr[0], arr[0]] : arr);
+    const times = keyFrames.map((f) => f32((f - c.trim.start) / fps));
     const t = appendFloatAccessor(json, bin, times, 'SCALAR', true);
     bin = t.bin;
     const samplers = [], channels = [];
@@ -227,8 +239,8 @@ export function buildClips(opt = {}) {
     };
     for (const name of boneNames) {
       const node = nodeIndex.get(name);
-      if (name === HIPS) push(node, 'translation', clip.hips.map((v) => v.map(f32)), 'VEC3');
-      push(node, 'rotation', clip.rot.get(name).map((q) => q.map(f32)), 'VEC4');
+      if (name === HIPS) push(node, 'translation', dup(clip.hips).map((v) => v.map(f32)), 'VEC3');
+      push(node, 'rotation', dup(clip.rot.get(name)).map((q) => q.map(f32)), 'VEC4');
     }
     animations.push({
       name: c.id,
@@ -236,7 +248,7 @@ export function buildClips(opt = {}) {
       samplers,
       extras: { build: { file: c.file, trim: [c.trim.start, c.trim.end], fps, loop: !!c.loop, placeholder: !!c.placeholder } },
     });
-    log.push(`${c.id}: ${c.file} кадры ${c.trim.start}..${c.trim.end} (${n}), ${((n - 1) / fps).toFixed(4)} с, D = (${clip.D.map((x) => x.toFixed(5)).join('; ')}) м${loopNote}`);
+    log.push(`${c.id}: ${c.file} кадры ${c.trim.start}..${c.trim.end} (${n}${n === 1 ? ', hold: 2 ключа' : ''}), ${((times.length - 1) / fps).toFixed(4)} с, D = (${clip.D.map((x) => x.toFixed(5)).join('; ')}) м${loopNote}`);
   }
   const dropped = json.animations.filter((a) => !ids.has(a.name)).map((a) => a.name);
   json.animations = animations;

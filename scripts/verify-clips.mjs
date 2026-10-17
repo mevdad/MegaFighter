@@ -92,7 +92,9 @@ export function verifyFk(glb, cfg, { lock, only, tol = 1, fbxDir }) {
       for (let f = 0; f < ref.length; f++) fk.names.forEach((_, b) => { pyDiff = Math.max(pyDiff, len(sub(ref[f][b], p.pos[f][idx[b]])) * 1000); });
     }
     const n = c.trim.end - c.trim.start + 1;
-    if (anim.frames.length !== n) throw new Error(`${c.id}: в GLB ${anim.frames.length} кадров, ожидалось ${n}`);
+    // hold-клип (один кадр trim) лежит в GLB как два одинаковых ключа (t 0 и 1/30 с, см. build-clips.mjs): проверяем оба на кадр trim
+    const keys = n === 1 ? 2 : n;
+    if (anim.frames.length !== keys) throw new Error(`${c.id}: в GLB ${anim.frames.length} кадров, ожидалось ${keys}`);
     const node = base.nodes.find((x) => x.name === HIPS);
     // rest Hips меша в мировой системе (Armature +90° по X: (x,y,z) -> (x,-z,y))
     const restM = [node.translation[0], -node.translation[2], node.translation[1]];
@@ -100,7 +102,7 @@ export function verifyFk(glb, cfg, { lock, only, tol = 1, fbxDir }) {
     const D = sub(restM, restF);
     // ожидаемая траектория Hips с учётом D и (опционально) лока
     const hipsF = [];
-    for (let k = 0; k < n; k++) hipsF.push(ref[c.trim.start + k][hi].map((x, i) => x + D[i]));
+    for (let k = 0; k < keys; k++) hipsF.push(ref[c.trim.start + Math.min(k, n - 1)][hi].map((x, i) => x + D[i]));
     let hipsExp = hipsF.map((v) => v.slice());
     const rl = c.rootLock;
     if (lock && rl && rl.factor > 0) {
@@ -110,8 +112,8 @@ export function verifyFk(glb, cfg, { lock, only, tol = 1, fbxDir }) {
       }
     }
     let maxE = 0, sumE = 0, cnt = 0, maxBone = '', maxFrame = 0, hipsOff = 0, hipsRes = 0;
-    for (let k = 0; k < n; k++) {
-      const g = anim.frames[k], r = ref[c.trim.start + k];
+    for (let k = 0; k < keys; k++) {
+      const g = anim.frames[k], r = ref[c.trim.start + Math.min(k, n - 1)];
       fk.names.forEach((nm, b) => {
         if (b === hi) return;
         const e = len(sub(sub(g[b], g[hi]), sub(r[b], r[hi]))) * 1000;
