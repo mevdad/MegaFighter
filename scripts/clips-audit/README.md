@@ -109,6 +109,18 @@ node $D/table.mjs        # таблица по кадрам из frames.json
 
 `harness.ts` импортирует `src/render/*`, `src/game/fighter`, `src/characters/roster` относительными путями: если эти модули изменятся (имена, сигнатуры `AnimatedFighter`, `Fighter`), харнесс придётся поправить. `frames.json` в каталоге скрипта это эталонный результат прогона (29 КБ); `table.mjs` берёт `out/shoot/frames.json`, а если его нет, этот эталон. Воспроизведено: `frames.json` и PNG после прогона совпали с исходными побайтово.
 
+**После пилота клипов** (`data/clips/terraks.json` новой схемы, `kick_high` в итоговом GLB больше нет) рецепт выше воспроизводится
+только на базе: `node scripts/apply-root-lock.mjs --glb assets/rig-source/terraks/terraks-base.glb --config <json с {id: kick_high, rootLock}> --set kick_high=0.6 --out ...`.
+`harness.ts` держит клипы старого рига (`kick_high`) и работает с базовым GLB.
+
+## Пилотные клипы в движке: pilot_shoot.mjs, harness/pilot.ts
+
+```bash
+npm run build:clips
+npx esbuild scripts/clips-audit/harness/pilot.ts --bundle --format=iife --external:node:worker_threads --outfile=scripts/clips-audit/out/harness/pilot.js
+node scripts/clips-audit/pilot_shoot.mjs   # docs/pilot-clips.png, docs/pilot-clips-compare.png, сверка позы движка с FK по GLB
+```
+
 ## Нетронутый GLB для validate.py
 
 `validate.py`, `hyp.py`, `restpose.py` нужен `out/gltf_pose.json`, то есть FK **нетронутого** `warrior3.glb` (до root lock; текущий `public/models/warrior3.glb` уже со срезанным ходом таза). Бинарник в репозиторий не копировался. Получить:

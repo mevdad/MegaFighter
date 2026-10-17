@@ -3,6 +3,7 @@
 
 Запуск (нужен Blender 4.x, headless):
     blender --background --python scripts/build-terraks-rig.py
+    npm run build:clips   # затем: база -> public/models/warrior3.glb (клипы из FBX без Blender)
 
 Как добавить новую анимацию:
 1. На mixamo.com, с загруженным персонажем Терракс, выбери анимацию → Download →
@@ -20,7 +21,9 @@ import bpy
 import os
 
 SOURCE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "rig-source", "terraks")
-OUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "public", "models", "warrior3.glb")
+# Вывод Blender это БАЗОВЫЙ GLB (меш, скелет, текстура, старые клипы), а не public/models/warrior3.glb:
+# итоговый файл собирает `npm run build:clips` (scripts/build-clips.mjs + apply-root-lock.mjs) из этой базы и FBX.
+OUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "rig-source", "terraks", "terraks-base.glb")
 
 MASTER_FBX = "Punching_1.fbx"
 MASTER_CLIP_NAME = "punch_body"

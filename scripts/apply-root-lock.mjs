@@ -5,11 +5,13 @@
  *
  * Запуск (без Blender, без зависимостей, детерминированно):
  *     node scripts/apply-root-lock.mjs                              # по data/clips/terraks.json, правит GLB на месте
- *     node scripts/apply-root-lock.mjs --set kick_high=0.6          # одноразово другой factor (JSON не меняется)
- *     node scripts/apply-root-lock.mjs --set kick_high=0.6 --out /tmp/k06.glb   # писать в другой файл
+ *     node scripts/apply-root-lock.mjs --set martelo_2=0.6          # одноразово другой factor (JSON не меняется)
+ *     node scripts/apply-root-lock.mjs --set martelo_2=0.6 --out /tmp/k06.glb   # писать в другой файл
  *     node scripts/apply-root-lock.mjs --glb in.glb --out out.glb --config other.json
+ * Обычно вызывается через `npm run build:clips` сразу после scripts/build-clips.mjs.
  *
- * Конфиг: data/clips/terraks.json, по каждому клипу { name, rootLock: { axes: ["z"], factor: 0..1 } }.
+ * Конфиг: data/clips/terraks.json, по каждому клипу { id, rootLock: { axes: ["z"], factor: 0..1 }, ... }
+ * (id = имя анимации в GLB; остальные поля читает build-clips).
  *   factor 0 — клип не трогается (байты accessor'а не меняются), 1 — Hips полностью зафиксирован
  *   по оси на значении ПЕРВОГО ключа клипа (в GLB он стоит на 0,0333 с), 0..1 — доля смещения.
  *   Формула на каждый ключ k:  p[k] := p[k] - factor * (p[k] - p[0])  (только выбранные оси).
@@ -27,10 +29,19 @@
  * и после factor 1 вернуть 0,6 или 0. Свежий GLB из Blender (bake:terraks) оригинал и несёт:
  * после пересборки в Blender этот скрипт нужно запустить снова.
  * Вращения Hips, остальные кости и остальные клипы не затрагиваются.
+ *
+ * Общие accessor'ы. Правится float32-accessor translation Hips прямо в BIN. Если этот accessor
+ * используется ещё каким-то sampler'ом (того же или другого клипа) или перекрывается по байтам с другим
+ * accessor'ом, правка испортила бы чужой клип. В этом случае скрипт НЕ падает, а создаёт отдельную копию
+ * (новый bufferView + accessor в конце BIN) и перенаправляет на неё sampler этого клипа; общий оригинал
+ * остаётся нетронутым (выбрано копирование, а не ошибка: лок продолжает работать для любого GLB).
+ * Если у правимого accessor'а есть min/max, они пересчитываются по float32-значениям, которые реально
+ * лежат в файле (валидатор glTF сверяет их с данными); у accessor'а без min/max их не появляется.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readGlb, writeGlb, accessorRange, appendFloatAccessor, minMax, samplerUsage } from './lib/glb.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HIPS_SUFFIX = ':Hips';
@@ -53,7 +64,7 @@ function parseArgs(argv) {
     else if (a === '--set') {
       const [name, v] = String(argv[++i]).split('=');
       const f = Number(v);
-      if (!name || v === undefined || !Number.isFinite(f)) throw new Error(`--set ожидает имя_клипа=factor, получено «${argv[i]}»`);
+      if (!name || v === undefined || !Number.isFinite(f)) throw new Error(`--set ожидает id_клипа=factor, получено «${argv[i]}»`);
       o.set[name] = f;
     } else throw new Error(`Неизвестный аргумент ${a}`);
   }
@@ -61,43 +72,13 @@ function parseArgs(argv) {
   return o;
 }
 
-// ---------------------------------------------------------------- GLB
-function readGlb(file) {
-  const b = fs.readFileSync(file);
-  if (b.readUInt32LE(0) !== 0x46546c67 || b.readUInt32LE(4) !== 2) throw new Error('Не GLB v2');
-  const jsonLen = b.readUInt32LE(12);
-  if (b.readUInt32LE(16) !== 0x4e4f534a) throw new Error('Первый чанк не JSON');
-  const json = JSON.parse(b.subarray(20, 20 + jsonLen).toString('utf8'));
-  const binHdr = 20 + jsonLen;
-  if (b.readUInt32LE(binHdr + 4) !== 0x004e4942) throw new Error('Второй чанк не BIN');
-  const binLen = b.readUInt32LE(binHdr);
-  const bin = Buffer.from(b.subarray(binHdr + 8, binHdr + 8 + binLen)); // копия, правим её
-  return { json, bin };
-}
-
-function writeGlb(file, json, bin) {
-  let js = Buffer.from(JSON.stringify(json), 'utf8');
-  js = Buffer.concat([js, Buffer.alloc((4 - (js.length % 4)) % 4, 0x20)]);
-  const total = 12 + 8 + js.length + 8 + bin.length;
-  const head = Buffer.alloc(20);
-  head.writeUInt32LE(0x46546c67, 0);
-  head.writeUInt32LE(2, 4);
-  head.writeUInt32LE(total, 8);
-  head.writeUInt32LE(js.length, 12);
-  head.writeUInt32LE(0x4e4f534a, 16);
-  const binHead = Buffer.alloc(8);
-  binHead.writeUInt32LE(bin.length, 0);
-  binHead.writeUInt32LE(0x004e4942, 4);
-  fs.writeFileSync(file, Buffer.concat([head, js, binHead, bin]));
-}
-
+// ---------------------------------------------------------------- GLB (общие readGlb/writeGlb: scripts/lib/glb.mjs)
 /** Смещение в BIN первого float32 VEC3 accessor'а и число ключей. */
 function vec3Accessor(json, idx) {
   const a = json.accessors[idx];
   if (a.componentType !== 5126 || a.type !== 'VEC3' || a.sparse || a.normalized) throw new Error(`accessor ${idx}: ожидается обычный float32 VEC3`);
-  const bv = json.bufferViews[a.bufferView];
-  if (bv.byteStride && bv.byteStride !== 12) throw new Error(`accessor ${idx}: byteStride не поддерживается`);
-  return { offset: (bv.byteOffset ?? 0) + (a.byteOffset ?? 0), count: a.count };
+  const { offset, count } = accessorRange(json, idx); // бросает на byteStride != 12 и sparse
+  return { offset, count };
 }
 
 function readVec3(bin, acc) {
@@ -108,6 +89,19 @@ function readVec3(bin, acc) {
 
 function writeVec3(bin, acc, vals) {
   vals.forEach((v, k) => v.forEach((x, c) => bin.writeFloatLE(x, acc.offset + (k * 3 + c) * 4)));
+}
+
+/** Другие sampler'ы / перекрывающиеся accessor'ы, делящие байты с accessor'ом idx (пустой список = accessor уникален). */
+function sharers(json, idx, usage) {
+  const out = (usage.get(idx) ?? []).slice();
+  const mine = accessorRange(json, idx);
+  const myBv = json.accessors[idx].bufferView;
+  json.accessors.forEach((a, j) => {
+    if (j === idx || a.bufferView !== myBv) return;
+    const r = accessorRange(json, j);
+    if (r.offset < mine.offset + mine.length && mine.offset < r.offset + r.length) out.push(`accessor ${j} (перекрытие байт)`);
+  });
+  return out;
 }
 
 // ---------------------------------------------------------------- математика (column-major mat4)
@@ -178,7 +172,9 @@ function stats(P, series) {
 function main() {
   const opt = parseArgs(process.argv.slice(2));
   const cfg = JSON.parse(fs.readFileSync(opt.config, 'utf8'));
-  const { json, bin } = readGlb(opt.glb);
+  const glb = readGlb(opt.glb);
+  const { json } = glb;
+  let bin = glb.bin;
 
   const hips = json.nodes.findIndex((n) => (n.name ?? '').endsWith(HIPS_SUFFIX));
   if (hips < 0) throw new Error('Не найден узел *:Hips');
@@ -187,19 +183,37 @@ function main() {
   for (const clip of cfg.clips) {
     const rl = clip.rootLock;
     if (!rl) continue;
-    const factor = opt.set[clip.name] ?? rl.factor;
-    if (!(factor >= 0 && factor <= 1)) throw new Error(`${clip.name}: factor ${factor} вне 0..1`);
-    const anim = json.animations.find((a) => a.name === clip.name);
-    if (!anim) throw new Error(`В GLB нет клипа «${clip.name}»`);
+    const id = clip.id;
+    if (!id) throw new Error('В конфиге клип без id (схема: { id, ..., rootLock })');
+    const factor = opt.set[id] ?? rl.factor;
+    if (!(factor >= 0 && factor <= 1)) throw new Error(`${id}: factor ${factor} вне 0..1`);
+    const anim = json.animations.find((a) => a.name === id);
+    if (!anim) throw new Error(`В GLB нет клипа «${id}»`);
     const ch = anim.channels.find((c) => c.target.node === hips && c.target.path === 'translation');
-    if (!ch) throw new Error(`${clip.name}: нет translation-канала Hips`);
-    const acc = vec3Accessor(json, anim.samplers[ch.sampler].output);
-    const mapping = mapAxes(P, rl.axes, clip.name);
+    if (!ch) throw new Error(`${id}: нет translation-канала Hips`);
+    const sampler = anim.samplers[ch.sampler];
+    let acc = vec3Accessor(json, sampler.output);
+    const mapping = mapAxes(P, rl.axes, id);
+    const saved = anim.extras?.rootLock?.original;
+    const willWrite = factor > 0 || !!saved; // иначе байты accessor'а не трогаем
+
+    // 0) accessor делится с другим sampler'ом или accessor'ом: правим отдельную копию, общий оригинал не трогаем
+    let copied = '';
+    if (willWrite) {
+      const others = sharers(json, sampler.output, samplerUsage(json)).filter((u) => u !== `${anim.name}#${ch.sampler}`);
+      if (others.length > 0) {
+        const src = json.accessors[sampler.output];
+        const r = appendFloatAccessor(json, bin, readVec3(bin, acc), 'VEC3', !!(src.min || src.max));
+        bin = r.bin;
+        sampler.output = r.index;
+        acc = vec3Accessor(json, r.index);
+        copied = ` (accessor делился с ${others.join(', ')}: правится отдельная копия)`;
+      }
+    }
 
     // 1) восстановить оригинал, если клип уже обрабатывался
-    const saved = anim.extras?.rootLock?.original;
     if (saved) {
-      if (saved.length !== acc.count) throw new Error(`${clip.name}: extras.rootLock.original не совпадает по длине`);
+      if (saved.length !== acc.count) throw new Error(`${id}: extras.rootLock.original не совпадает по длине`);
       writeVec3(bin, acc, saved);
     }
     const orig = readVec3(bin, acc);
@@ -215,8 +229,11 @@ function main() {
         return o;
       });
     }
-    writeVec3(bin, acc, after);
+    if (willWrite) writeVec3(bin, acc, after);
     const stored = readVec3(bin, acc); // что реально лежит в float32 после записи
+    // min/max (если были) должны описывать то, что лежит в файле
+    const a = json.accessors[sampler.output];
+    if (willWrite && (a.min || a.max)) Object.assign(a, minMax(stored, 3));
 
     // 3) метаданные для идемпотентности
     if (factor > 0) {
@@ -227,7 +244,7 @@ function main() {
     }
 
     const map = mapping.map((m) => `${m.axis}->local[${'xyz'[m.local]}]${m.sign < 0 ? ' (знак -)' : ''}`).join(', ');
-    console.log(`${clip.name}: factor ${factor}, оси ${map}${opt.set[clip.name] !== undefined ? ' (override --set)' : ''}`);
+    console.log(`${id}: factor ${factor}, оси ${map}${opt.set[id] !== undefined ? ' (override --set)' : ''}${copied}`);
     console.log(`  до    мир Hips  ${stats(P, orig)}`);
     console.log(`  после мир Hips  ${stats(P, stored)}`);
   }

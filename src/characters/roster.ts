@@ -22,6 +22,9 @@ interface Blueprint {
   animatedRig?: CharacterSpec['animatedRig'];
 }
 
+/** Запас на конце окна клипа, секунды (см. animatedRig Терракса). */
+const EPS = 1e-4;
+
 const BLUEPRINTS: Blueprint[] = [
   {
     id: 'kaira',
@@ -234,20 +237,18 @@ const BLUEPRINTS: Blueprint[] = [
     animatedRig: {
       url: 'models/warrior3.glb',
       yaw: 270,
-      idleClip: 'idle_hold',
+      idleClip: 'fighting_idle',
       runClip: 'idle_hold',
-      punch: { clip: 'punch_body', start: 0, end: 0.9 },
-      // Cross_Punch — мокап на 2с (60 кадров/30fps), офлайн-замер по костям (правая
-      // кисть) показал полное разгибание руки к ~1.1–1.2с, дальше клип просто держит
-      // и убирает руку обратно в стойку — этот хвост не нужен, реальный hp-удар
-      // Терракса укладывается в ~0.5с игрового времени. Обрезано до 1.3с (см. README в
-      // assets/rig-source/terraks — там же как поправить точнее, если ещё быстро).
-      punchHeavy: { clip: 'punch_heavy', start: 0, end: 1.3 },
-      // Полный клип — 1.3333с, а реальный удар (lk/hk) идёт всего 0.35–0.7с игрового
-      // времени: растягивать на него весь клип выглядело неестественно быстрым/дёрганым.
-      // Урезано до первых ~68%, где укладывается основной мах ногой (см. README в
-      // assets/rig-source/terraks — там же как поправить точнее, если ещё быстро).
-      kick: { clip: 'kick_high', start: 0, end: 0.9 },
+      // Клипы собираются из FBX скриптом scripts/build-clips.mjs (data/clips/terraks.json, DECISIONS.md §3).
+      // Окна start/end это локальные времена обрезанного клипа: ключ k лежит на k/30 с, клип начинается с 0.
+      // EPS: время ровно на длительности клипа движок (float32) заворачивает в начало, поэтому конец окна чуть раньше.
+      // Пока окно просто растягивается на moveTotal (ремап по кадру приёма это DECISIONS §3, этап 6).
+      // lp: Jab, кадры FBX 11..26 (16 кадров), пик вытянутой руки на кадре FBX 17 (локальный 6).
+      punch: { clip: 'jab', start: 0, end: 15 / 30 - EPS },
+      // hp: Cross_Punch, кадры FBX 24..45 (22 кадра), пик на кадре FBX 34 (локальный 10); медленный замах 8-23 не играем.
+      punchHeavy: { clip: 'cross_punch', start: 0, end: 21 / 30 - EPS },
+      // hk: Martelo_2, кадры FBX 3..35 (33 кадра); таз сдвигается вперёд, поэтому rootLock Z factor 1 (DECISIONS §9).
+      kick: { clip: 'martelo_2', start: 0, end: 32 / 30 - EPS },
       hitHigh: { clip: 'idle_hold', start: 0, end: 0.3333 },
     },
   },

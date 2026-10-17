@@ -1,8 +1,14 @@
 {
+  "fps": 30,
+  "fbxDir": "assets/rig-source/terraks",
+  "baseGlb": "assets/rig-source/terraks/terraks-base.glb",
+  "outGlb": "public/models/warrior3.glb",
   "clips": [
-    { "name": "idle_hold", "rootLock": { "axes": ["z"], "factor": 0 } },
-    { "name": "punch_body", "rootLock": { "axes": ["z"], "factor": 0 } },
-    { "name": "kick_high", "rootLock": { "axes": ["z"], "factor": 1 } },
-    { "name": "punch_heavy", "rootLock": { "axes": ["z"], "factor": 0 } }
+    { "id": "idle_hold", "loop": true, "placeholder": true, "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "id": "punch_body", "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "id": "fighting_idle", "file": "Fighting_Idle.fbx", "trim": { "start": 0, "end": 101 }, "loop": true, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "id": "jab", "file": "Jab.fbx", "trim": { "start": 11, "end": 26 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } },
+    { "id": "martelo_2", "file": "Martelo_2.fbx", "trim": { "start": 3, "end": 35 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 1 } },
+    { "id": "cross_punch", "file": "Cross_Punch.fbx", "trim": { "start": 24, "end": 45 }, "loop": false, "placeholder": false, "rootLock": { "axes": ["z"], "factor": 0 } }
   ]
 }

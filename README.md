@@ -184,11 +184,19 @@ npm run bake:mocap -- public/models/warrior.glb   # перезаписывает
 npm run check:mocap                                # проверяет, что интерполяция клипа гладкая
 ```
 
-### Пересборка `public/models/warrior3.glb` (риг Терракса)
+### Сборка `public/models/warrior3.glb` (риг Терракса)
 
-Это единственный шаг сборки, для которого недостаточно `npm install` — нужен ещё
-Blender как системная зависимость (npm не умеет ставить такое, поэтому это не
-devDependency в `package.json`, а требование окружения):
+Две ступени (подробности: `assets/rig-source/terraks/README.md`):
+
+```bash
+npm run build:clips    # только Node: база + FBX -> public/models/warrior3.glb (+ rootLock), идемпотентно
+npm run verify:clips   # проверка FK против FBX (допуск 1 мм) и структуры GLB
+```
+
+`build:clips` не требует Blender: клипы собираются прямо из FBX (`data/clips/terraks.json`), меш и скелет
+берутся из `assets/rig-source/terraks/terraks-base.glb`. Эта база лежит в репозитории готовой.
+
+Blender нужен только чтобы пересобрать САМУ БАЗУ (меш, скелет, текстуру) из `Punching_1.fbx`:
 
 - **Blender 4.x** (`apt install blender` на Ubuntu/Debian, или blender.org для
   остальных систем) — headless-сборка через `bpy`.
@@ -200,7 +208,8 @@ devDependency в `package.json`, а требование окружения):
   так: `<путь-к-blender>/4.x/python/bin/python3.x -m pip install numpy`.
 
 ```bash
-npm run bake:terraks   # прогоняет scripts/build-terraks-rig.py, перезаписывает warrior3.glb
+npm run bake:terraks   # Blender: пишет БАЗУ assets/rig-source/terraks/terraks-base.glb, итоговый warrior3.glb не трогает
+npm run build:clips    # после этого пересобрать итоговый GLB
 ```
 
 Как добавить ещё одну боевую анимацию Терраксу — см.
